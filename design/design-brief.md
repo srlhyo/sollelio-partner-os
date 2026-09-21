@@ -20,11 +20,18 @@ Partner: Nádia / future Design Partner members. Mobile-first.
 
 Internal: Sollelio operator. Desktop-first.
 
+## Language
+
+**Both experiences are Portuguese (pt-PT)** — partner and Sollelio internal. Use clear, relatively neutral pt-PT; avoid regional idiom.
+
+The English strings in `/docs` are specification shorthand, not copy. Design with real Portuguese, not English placeholders: Portuguese runs roughly 20–30% longer, and the places that breaks are buttons, status chips, the attention header, and internal table headers and queue labels.
+
 ## Design these Partner surfaces
 
 1. Partner Home
-   - Needs Your Attention as highest priority.
-   - total estimated effort.
+   - Needs Your Attention as highest priority. At this slice it contains Requests only; design it so Issues awaiting the partner can join the same list later without a new pattern.
+   - total estimated effort, calculated from Requests.
+   - Request cards show a deadline only when the Request has one. Most will not.
    - Request cards.
    - minimal Quick Resources.
    - Report Problem entry point can be visible as future/system affordance, but do not invent the full Issue flow in this first design slice unless needed to establish the system language.
@@ -32,7 +39,8 @@ Internal: Sollelio operator. Desktop-first.
 2. Request Detail
    - why;
    - exact requested action;
-   - effort;
+   - effort (`<1 min` renders as `<1 min`, never `1 min`);
+   - deadline when one exists — and no deadline element at all when it does not;
    - external deep link where needed;
    - structured response;
    - mobile-first.
@@ -47,13 +55,17 @@ Internal: Sollelio operator. Desktop-first.
    - canonical website;
    - shared files.
 
-5. Key empty/loading/error states for the above.
+5. Sign-in and “check your email”.
+   - Magic link / email OTP. There is no password field anywhere.
+   - The expired-link and wrong-browser cases need a calm way back.
+
+6. Key empty/loading/error states for the above.
 
 ## Design these internal surfaces
 
 1. Organization Overview — Do Luxo à Mesa.
 2. Create Request.
-3. Request Detail with explicit separation between partner-facing content and internal-only context.
+3. Request Detail with explicit separation between partner-facing content and internal-only context. Internal-only covers completion criteria, internal owner, internal priority and notes — these come from a separate internal record, so “Preview as Partner” is an honest preview rather than a styling trick.
 4. Preview as Partner state.
 
 ## Responsive priorities
@@ -70,6 +82,8 @@ Internal: optimize for approximately 1280–1440 px desktop while remaining usab
 - No ticket IDs, priority, triage or owner metadata shown to Partner.
 - No analytics vanity dashboard.
 - Do not create an onboarding wizard.
+- Do not design an organization switcher. A partner has one organization; the multi-membership chooser is an edge case, not a shell element.
+- Do not design a video/screen-recording affordance. V0 evidence is text, image and audio.
 - Do not design a project-management system.
 - Preserve clear room for future Updates and Issues without designing them in full now.
 
@@ -91,11 +105,13 @@ Before designing, inspect `design/brand/README.md`, `design/brand/sollelio-brand
 
 Use **Sollelio Partner OS** as a Sollelio product lockup, not as an independent brand. The Sollelio master symbol must remain unchanged.
 
-The supplied Partner OS lockups are the current working product identity references:
+The supplied Partner OS lockups are **design references, not production masters**:
 
 - `design/brand/partner-os/sollelio-partner-os-primary.png`
 - `design/brand/partner-os/sollelio-partner-os-reverse.png`
 - `design/brand/partner-os/sollelio-partner-os-compact.png`
+
+Production UI uses the official Sollelio SVG assets. In compact chrome, the Sollelio symbol alone is acceptable — do not invent a separate compact wordmark.
 
 The Do Luxo à Mesa logo is available at `design/brand/partner-brands/do-luxo-a-mesa-logo-transparent.png`. Treat it strictly as tenant content. Do **not** derive the Partner OS visual language from Do Luxo à Mesa's gold/black/luxury identity.
 

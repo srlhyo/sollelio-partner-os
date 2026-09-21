@@ -6,6 +6,8 @@ The complete Partner OS V0 specification is context, not permission to design th
 
 Design only the first production-facing system foundation and the Slice 1 + Slice 2 experience.
 
+All copy is **Portuguese (pt-PT)** — partner and Sollelio internal alike — in clear, relatively neutral pt-PT. The English examples in `/docs` are specification shorthand, not copy. Design with real Portuguese strings; they run roughly 20–30% longer than the English examples, and internal density is where that hurts most.
+
 ## Partner experience — mobile-first
 
 Design:
@@ -15,12 +17,14 @@ Design:
    - Show number of pending items and honest total estimated effort.
    - Include clear Request cards.
    - Include minimal Quick Resources for Sollelio Events V1, the Do Luxo à Mesa website and shared files.
+   - Attention contains Requests only at this slice; Issues awaiting the partner join the same list in Slice 4, so the pattern must extend.
    - Leave a natural place for future Updates and Report Problem without turning this first slice into a complete future UI.
 
 2. Request Detail
    - Why Sollelio is asking.
    - Exactly what the partner should do.
-   - Estimated effort.
+   - Estimated effort (`<1 min` renders as `<1 min`).
+   - Deadline when the Request has one; no deadline element when it does not.
    - Relevant link/media.
    - Structured response controls.
    - Clear primary action.
@@ -33,7 +37,9 @@ Design:
 4. Resources
    - Canonical, obvious and easy to scan.
 
-5. Key empty, loading and failure states.
+5. Sign-in and “check your email” — magic link / email OTP, no password field anywhere, plus the expired-link case.
+
+6. Key empty, loading and failure states.
 
 ## Sollelio internal experience — desktop-first
 
@@ -56,6 +62,8 @@ The internal Request Detail must make partner-facing content and internal-only c
 - Partner and Internal should clearly belong to the same Sollelio product family without having identical information density.
 - Do not add a generic notifications inbox.
 - Do not add a multi-step onboarding wizard.
+- Do not add an organization switcher to the partner shell.
+- Do not design a video/screen-recording capture affordance.
 - Do not introduce project-management, CRM, chat or roadmap capabilities.
 - Do not redesign product requirements. If you discover a genuine specification conflict, flag it explicitly instead of silently solving it through new scope.
 
@@ -71,7 +79,7 @@ Produce the strongest coherent design direction you can for the requested surfac
 
 Before designing, inspect all files under `design/brand/` and follow `design/brand/sollelio-brand-guidelines.md`.
 
-Use the supplied Sollelio Partner OS lockups as the current product identity. Do not redesign the Sollelio symbol or invent a separate Partner OS symbol.
+The supplied Sollelio Partner OS lockup PNGs are design references, not production masters: use the official Sollelio SVG assets for production UI, and the Sollelio symbol alone in compact chrome. Do not redesign the Sollelio symbol or invent a separate Partner OS symbol.
 
 The Do Luxo à Mesa logo is tenant content only. It may be used in organization context where helpful, but its visual identity must not influence the Partner OS platform design.
 

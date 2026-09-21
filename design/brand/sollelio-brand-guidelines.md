@@ -21,6 +21,8 @@
 
 The palette is a foundation, not a requirement to saturate the UI in brand colours. Partner-facing UX should remain calm, clear, lightweight and high-trust.
 
+Contrast notes for UI use: Mineral Indigo on Warm Off-white is comfortable (≈8.5:1). Cobalt on Warm Off-white is ≈4.9:1 — fine for body text and actions, not for small or light-weight type, and never the only signal for state (`03_UX_SPEC.md §23`).
+
 ## Symbol rules
 
 - The Sollelio symbol consists of four coordinated planes sharing one continuous negative-space route.
@@ -34,16 +36,25 @@ The palette is a foundation, not a requirement to saturate the UI in brand colou
 ## Typography / lockups
 
 - Existing production Sollelio lockups use Rubik Regular and have outlined SVG production versions.
-- Prefer the outlined SVG masterbrand assets in production where applicable.
-- `design/brand/partner-os/*.png` are approved working visual references for the Partner OS product lockup.
-- If Claude /design or implementation needs a production vector lockup, preserve this exact hierarchy and optical relationship rather than inventing a new product identity.
+- **Production UI uses the official Sollelio SVG assets.** Never ship a generated PNG lockup into the application.
+- `design/brand/partner-os/*.png` are **design references only** — they define the approved hierarchy and optical relationship between the wordmark and the Partner OS descriptor. They are not production masters.
+- If implementation needs a production vector lockup, compose it from the official SVG assets and preserve that exact hierarchy rather than inventing a new product identity.
 
 ## Partner OS lockup usage
 
-- `sollelio-partner-os-primary.png`: light backgrounds, login, portal headers, documentation.
-- `sollelio-partner-os-reverse.png`: dark surfaces.
-- `sollelio-partner-os-compact.png`: compact header/sidebar contexts.
-- For favicons/app icons, use `sollelio-symbol-color.svg`; do not create a separate Partner OS symbol.
+Reference images, and what each one is for:
+
+- `sollelio-partner-os-primary.png`: the full lockup relationship — light backgrounds, login, portal headers, documentation.
+- `sollelio-partner-os-reverse.png`: the same relationship on dark surfaces.
+- `sollelio-partner-os-compact.png`: a tighter setting of the same two-line lockup.
+
+In compact UI — app headers, sidebars, narrow mobile chrome — **the Sollelio symbol alone is acceptable and preferred**. Do not require or invent a separate compact wordmark; the symbol plus the surrounding product context is enough.
+
+For favicons/app icons, use `sollelio-symbol-color.svg`; do not create a separate Partner OS symbol.
+
+### Dark surfaces
+
+The symbol's indigo planes sit at roughly 1.8:1 against Midnight Indigo, which is not enough to read. On dark backgrounds use the reverse treatment with a lighter plane or the mono symbol, and check the result rather than assuming the reverse asset handles it.
 
 ## Tenant branding
 

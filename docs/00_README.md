@@ -32,6 +32,27 @@ V0 revolves around three operational objects:
 
 Supporting concepts include Organization, Person, Product, Resource, Activity, media, and integration context.
 
+## Fixed V0 decisions
+
+These are settled. Do not re-open them during implementation; the canonical document for each is in brackets.
+
+- **All user-facing surfaces are Portuguese (pt-PT)** — partner and internal. No i18n framework. Code, schema and domain terminology stay English. [`01 §13`, `04 §21`]
+- Partner sign-in is **magic link / email OTP**. People are created invite-first: auth user, then profile. [`04 §20`]
+- **“Needs your attention”** = Requests where `next_actor = partner` + Issues where `status = needs_partner`. Nothing else. Effort totals come from Requests only. [`01 §8`, `03 §3`]
+- Requests have **five states**: draft, needs_partner, needs_sollelio, completed, cancelled. [`01 §5`, `05 §4`]
+- Partners **never read the `requests`, `issues` or `updates` base tables**. They read explicit partner projections. RLS is on everywhere, default deny. [`04 §7`, `05 §12`]
+- **Issue visibility is reporter-only** in V0. Closing and reopening are manual Sollelio actions; a partner reply after resolution raises an internal signal, never an auto-reopen. [`01 §5`, `02 §7`]
+- `resources` is the **single source of truth** for partner-facing canonical URLs. [`02 §11`, `05 §3`]
+- Netlify hosts the SPA. **All privileged server-side code and every `/v1/*` endpoint runs in Supabase Edge Functions.** [`04 §2`]
+- Events V1 integration is server-to-server with a shared secret in environment variables, and `/v1/partner-context` **fails open**. [`04 §4`, `05 §15`]
+- **Each delivery slice owns exactly one migration wave.** [`05 §17`, `06`]
+- A partner has **one active organization** in V0; more than one requires an explicit chooser, never a silent pick. [`03 §2`, `04 §6`]
+- **Deadlines are shown when they exist and absent otherwise** — no placeholder. Effort `<1 min` stores as 1 and renders as `<1 min`. [`02 §2`, `03 §4`]
+- **Archiving an organization is rejected while work is open.** Nothing is cancelled or closed implicitly. [`02 §16`, `05 §1`]
+- Contextual Issue reporting is **text, image and audio**. Video is deferred until clarification friction proves it necessary. [`03 §19`, `05 §14`]
+- `resource.opened` is the **only** partner behaviour V0 instruments. No generic view tracking. [`05 §8`]
+- **Media retention is deferred for the pilot** and must be defined before a second Design Partner. [`04 §11`, `07 §16`]
+
 ## Scope discipline
 
 Do not add functionality because it is elegant or generally useful. A V0 feature must solve an observed problem or be essential to validating the operating model with real Design Partners.

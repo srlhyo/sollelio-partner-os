@@ -18,7 +18,9 @@ This folder contains only the assets needed to design and implement Sollelio Par
 - `partner-os/sollelio-partner-os-reverse.png`
 - `partner-os/sollelio-partner-os-compact.png`
 
-These are current approved working lockup references. They do not create a new symbol: Partner OS inherits the Sollelio master symbol.
+These PNGs are **design references, not production masters**. They show the approved relationship between the Sollelio wordmark and the Partner OS descriptor. They do not create a new symbol: Partner OS inherits the Sollelio master symbol.
+
+Production UI uses the official Sollelio SVG assets listed above. Do not ship a generated PNG lockup into the application.
 
 ## Tenant brand
 

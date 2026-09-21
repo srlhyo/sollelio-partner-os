@@ -11,10 +11,11 @@ Establish the smallest production-quality engineering foundation needed for the 
 - React + TypeScript application foundation;
 - clear modular source structure consistent with the Technical Architecture;
 - dedicated Partner OS Supabase project configuration/integration points;
-- versioned migration structure;
+- Netlify hosting for the SPA; Supabase Edge Functions for all privileged server-side code;
+- versioned migration structure, with Edge Function deployment in the same versioned pipeline;
 - local, staging and production environment conventions;
 - environment-variable handling with no privileged secrets exposed client-side;
-- baseline auth/application shell wiring only where needed for the foundation;
+- baseline auth/application shell wiring only where needed for the foundation (magic link / email OTP);
 - lint;
 - typecheck;
 - test runner;
@@ -30,6 +31,8 @@ Establish the smallest production-quality engineering foundation needed for the 
 - Do not couple Partner OS to the Sollelio Events V1 database.
 - Keep the architecture a modular monolith.
 - Any schema introduced must be versioned through migrations, not only dashboard configuration.
+- Any table introduced has RLS enabled with a default-deny posture, even in Phase 0.
+- Do not create schema beyond what Slice 1 needs. Each slice owns exactly one migration wave.
 
 ## Verification
 

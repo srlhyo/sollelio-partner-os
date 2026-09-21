@@ -66,7 +66,9 @@ Can create and manage organizations, products, resources, Requests, Updates and 
 
 ### Partner member
 
-Can see relevant Requests, respond to them, view Updates, acknowledge important Updates when required, report Issues, add clarification/evidence, track resolution, and open canonical Resources.
+Can see Requests assigned to them, respond to them, view Updates addressed to their organization, acknowledge important Updates when required, report Issues, add clarification/evidence, track the Issues they reported, and open canonical Resources.
+
+In V0 a partner sees the Issues they reported, not those reported by colleagues. Organization-wide Issue visibility is added only if real use requires it.
 
 V0 deliberately avoids complex RBAC.
 
@@ -86,13 +88,21 @@ Types:
 Internal lifecycle:
 - draft;
 - needs_partner;
-- in_progress;
 - needs_sollelio;
-- blocked;
 - completed;
 - cancelled.
 
-Every open Request has a clear next actor. “Overdue” is a calculated condition, not a state.
+V0 has no `in_progress` and no `blocked` state. Every open Request has exactly one unambiguous next actor, and each remaining state maps to one:
+
+- draft → none;
+- needs_partner → partner;
+- needs_sollelio → sollelio;
+- completed → none;
+- cancelled → none.
+
+“Overdue” is a calculated condition, not a state.
+
+Additional states are added only when a real pilot Request cannot be represented without them.
 
 A published Request must make clear:
 - what to do;
@@ -139,6 +149,8 @@ Lifecycle:
 - resolved;
 - closed.
 
+A partner may reply after an Issue is resolved. That reply never reopens the Issue automatically: it raises a visible internal signal, and Sollelio decides whether to reopen the Issue or to acknowledge the reply as handled. Reopening and closing are both manual Sollelio actions; there is no auto-close in V0.
+
 Classification:
 - unknown;
 - bug;
@@ -155,6 +167,8 @@ Classification:
 ### Organization
 
 A partner organization, initially Do Luxo à Mesa.
+
+An organization is archived only when its collaboration is genuinely finished: archival is rejected while any Request is open or any Issue is not closed, and it never cancels or closes work implicitly.
 
 ### Person
 
@@ -175,6 +189,8 @@ Operational history such as creation, publication, view, submission, acknowledge
 ## 7. Partner/internal boundary
 
 Partner-visible information must be intentionally exposed. Internal information is private by default.
+
+This is a structural boundary, not a presentation rule. Partners read Requests, Issues and Updates through explicit partner projections that expose only partner-visible fields; they never read the underlying operational records. Completion criteria, internal priority, internal ownership and Issue classification sit outside the partner-readable shape entirely.
 
 Partners should not see internal priority, triage notes, engineering diagnostics, internal owner notes, hypotheses, other organizations, private AI analysis or technical root-cause detail unless converted into appropriate partner-facing communication.
 
@@ -199,6 +215,15 @@ Home priority:
 3. What’s new;
 4. Quick resources;
 5. Report a problem.
+
+**Needs your attention** means exactly two things:
+
+- Requests where `next_actor = partner`;
+- Issues where `status = needs_partner`.
+
+Updates are never counted as attention, including Updates that require acknowledgement — those belong to the Updates indicator. Effort totals shown alongside the attention count are calculated from Requests only.
+
+The **Since last visit** block arrives with Updates in Slice 3, when it has real content to show.
 
 ## 9. Internal information architecture
 
@@ -269,7 +294,15 @@ Notification levels:
 3. Normal update — usually visible in Partner OS only.
 4. Internal activity — never notify the partner.
 
-## 13. V0 non-goals
+In V0 these levels guide human judgement. Delivery is manual and Partner OS stores no notification records; that is added when a real reminder/delivery workflow exists.
+
+## 13. Language
+
+Partner OS is **Portuguese (pt-PT)** in V0 — both the partner experience and the Sollelio internal experience. There is no i18n framework and no language switcher. Copy is written directly in Portuguese, in clear and relatively neutral pt-PT.
+
+Code, schema, domain terminology and technical documentation remain English. Enum values such as `needs_partner` are domain terminology, not copy: they are rendered into Portuguese at the presentation boundary and never shown raw on any surface.
+
+## 14. V0 non-goals
 
 Partner OS V0 is not:
 
@@ -297,7 +330,7 @@ Not in initial V0:
 - global search;
 - advanced analytics.
 
-## 14. Success criteria
+## 15. Success criteria
 
 ### Partner
 
@@ -324,6 +357,6 @@ Not in initial V0:
 - the team learns which communication formats work;
 - V0 usage supplies evidence for V1 rather than assumptions.
 
-## 15. V0 → V1 trigger
+## 16. V0 → V1 trigger
 
 Move beyond V0 after real use across approximately 2–3 Design Partner organizations, multiple Request/Update/Issue cycles, and observed repeated limitations that justify redesign or additional first-class objects.
