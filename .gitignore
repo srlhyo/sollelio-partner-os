@@ -13,3 +13,9 @@ supabase/.branches/
 supabase/.temp/
 
 .DS_Store
+
+# Playwright
+/.auth/
+/test-results/
+/playwright-report/
+/blob-report/

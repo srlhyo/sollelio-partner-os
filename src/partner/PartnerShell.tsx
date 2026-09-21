@@ -1,18 +1,43 @@
 /**
  * `/partner/*` — the partner-facing surface.
  *
- * Phase 0 renders the shell only, to prove routing, session plumbing and the build.
- * Home, Request Detail, Resources and the sign-in screens are Slice 1/Slice 2 work,
- * designed mobile-first in pt-PT (03_UX_SPEC.md).
+ * The header carries the platform, not the tenant: the Sollelio symbol with
+ * "Partner OS". The organization appears as workspace context above the greeting,
+ * so it can never be mistaken for a Do Luxo à Mesa lockup.
  */
-import { SurfacePlaceholder } from '../platform/SurfacePlaceholder';
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { Icon, SollelioSymbol } from '../platform/ui/Icon';
 
-export function PartnerShell() {
+export function PartnerShell({
+  children,
+  back,
+}: {
+  children: ReactNode;
+  back?: { to: string; label: string } | undefined;
+}) {
   return (
-    <SurfacePlaceholder
-      surface="Parceira"
-      route="/partner/*"
-      note="As superfícies da parceira chegam na Fase 1."
-    />
+    <div className="partner">
+      <header className="partner__bar">
+        {back ? (
+          <Link
+            to={back.to}
+            className="btn btn--ghost"
+            style={{ marginLeft: -8, minHeight: 44 }}
+          >
+            <Icon name="back" size={20} />
+            {back.label}
+          </Link>
+        ) : (
+          <span className="partner__brand">
+            <SollelioSymbol size={26} />
+            <span>
+              <strong>Sollelio</strong> Partner OS
+            </span>
+          </span>
+        )}
+      </header>
+      {children}
+    </div>
   );
 }

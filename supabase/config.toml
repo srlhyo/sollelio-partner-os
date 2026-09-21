@@ -6,16 +6,20 @@
 
 project_id = "sollelio-partner-os"
 
+# Local ports sit in the 544xx range rather than Supabase's 543xx defaults, so this
+# stack coexists with other local Supabase projects on the same machine instead of
+# fighting them for 54321/54322.
+
 [api]
 enabled = true
-port = 54321
+port = 54421
 schemas = ["public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
-port = 54322
-shadow_port = 54320
+port = 54422
+shadow_port = 54420
 major_version = 15
 
 [db.migrations]
@@ -23,24 +27,37 @@ enabled = true
 
 [studio]
 enabled = true
-port = 54323
+port = 54423
 
 [inbucket]
 enabled = true
-port = 54324
+port = 54424
 
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:5173"
-additional_redirect_urls = ["http://127.0.0.1:5173/partner", "http://127.0.0.1:5173/app"]
+# Wildcarded so a deep link — the exact Request or Resource the partner was opening —
+# survives the round trip through email (03_UX_SPEC.md §20).
+additional_redirect_urls = [
+  "http://127.0.0.1:5173/**",
+  "http://localhost:5173/**",
+  # The preview server the browser E2E suite runs against.
+  "http://127.0.0.1:4173/**",
+  "http://localhost:4173/**",
+]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 enable_signup = false
 
 # Magic link / email OTP only — partners never manage a password
 # (04_TECHNICAL_ARCHITECTURE.md §20).
+#
+# `enable_signup` here is the email *provider* switch, not a signup-only one:
+# turning it off returns "Email logins are disabled" and breaks the only way into
+# Partner OS. Self-signup is prevented by `[auth] enable_signup = false` above and by
+# the client passing `shouldCreateUser: false`, so people still arrive invite-first.
 [auth.email]
-enable_signup = false
+enable_signup = true
 enable_confirmations = true
 double_confirm_changes = true
 secure_password_change = true

@@ -44,8 +44,8 @@ jobs:
       - name: No privileged secrets in the client bundle
         run: npm run check:client-bundle
 
-  migrations:
-    name: Migrations are reproducible
+  database:
+    name: Migrations, posture and RLS
     runs-on: ubuntu-latest
 
     services:
@@ -70,7 +70,10 @@ jobs:
       - name: Install psql client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Apply every migration to an empty database
+      # Applies every migration to an empty database, then runs the baseline posture
+      # checks and the release-blocking authorization assertions
+      # (06_BUILD_PLAN.md, "Release-blocking security tests").
+      - name: Migrations, security posture and RLS
         run: node scripts/verify-migrations.mjs
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
@@ -90,3 +93,40 @@ jobs:
         run: |
           shopt -s globstar
           deno check supabase/functions/**/*.ts
+
+  e2e:
+    name: Browser E2E (real Supabase stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Real GoTrue, real PostgREST, real RLS. The suite signs in through the
+      # genuine magic-link flow, reading the message out of the local mail catcher.
+      - name: Start the local Supabase stack
+        run: supabase start
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser E2E
+        run: npm run e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

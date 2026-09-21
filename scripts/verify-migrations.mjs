@@ -15,10 +15,21 @@ import { readdir } from 'node:fs/promises';
 import process from 'node:process';
 
 const MIGRATIONS = 'supabase/migrations';
-const FIXTURE = 'supabase/verify/00_supabase_like_roles.sql';
-const ASSERTIONS = 'supabase/verify/99_assert_posture.sql';
+const VERIFY = 'supabase/verify';
 const IMAGE = 'postgres:15-alpine';
 const CONTAINER = 'partner-os-migration-check';
+
+/**
+ * Files under supabase/verify/ run in filename order: `0x` before the migrations
+ * (the Supabase-shaped scaffolding they assume), `9x` after (fixtures, then the
+ * assertions that must hold once everything is applied).
+ */
+async function verifyFiles(prefix) {
+  return (await readdir(VERIFY))
+    .filter((f) => f.endsWith('.sql') && f.startsWith(prefix))
+    .sort()
+    .map((f) => `${VERIFY}/${f}`);
+}
 
 function psql(url, file) {
   execFileSync('psql', ['--quiet', '--no-psqlrc', '-v', 'ON_ERROR_STOP=1', '-f', file, url], {
@@ -78,13 +89,22 @@ const external = process.env.DATABASE_URL;
 const url = external ?? startContainer();
 
 try {
-  psql(url, FIXTURE);
+  for (const file of await verifyFiles('0')) {
+    console.log(`Scaffolding ${file}`);
+    psql(url, file);
+  }
+
   for (const file of files) {
     console.log(`Applying ${file}`);
     psql(url, `${MIGRATIONS}/${file}`);
   }
-  psql(url, ASSERTIONS);
-  console.log('\nMigrations applied cleanly and the baseline posture holds.');
+
+  for (const file of await verifyFiles('9')) {
+    console.log(`Checking ${file}`);
+    psql(url, file);
+  }
+
+  console.log('\nMigrations applied cleanly; posture and authorization hold.');
 } finally {
   if (!external) stopContainer();
 }

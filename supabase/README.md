@@ -20,7 +20,19 @@ security posture still holds.
 
 **Each delivery slice owns exactly one migration wave**
 (`docs/05_DATA_MODEL_AND_API.md` §17). Do not create a later wave's tables early.
-Phase 0 introduces no domain tables at all — the first wave belongs to Slice 1.
+
+| Migration | Wave |
+| --- | --- |
+| `…120000_baseline_security_posture` | Phase 0 — no domain tables |
+| `…130000_slice1_organizations_products_resources` | Wave 1 — Slice 1 |
+
+Wave 2 (requests) does not exist yet and must not be written before Slice 2 starts.
+
+One thing Slice 1 carries that is not domain schema: every function it creates
+revokes EXECUTE from PUBLIC explicitly. PostgreSQL grants EXECUTE on new functions to
+PUBLIC, and no `ALTER DEFAULT PRIVILEGES` setting can take that back — verified
+empirically on PostgreSQL 15. `verify/90_assert_posture.sql` therefore fails the
+build if any function in `app` is left without that revoke.
 
 What Phase 0 does establish is the posture every later wave inherits: the `app`
 schema for privileged helpers, closed to the API roles, and default privileges
@@ -51,10 +63,21 @@ supabase secrets set PARTNER_OS_INTEGRATION_SECRET=... --project-ref <ref>
 ## Local stack
 
 ```bash
-supabase start              # Postgres, Auth, Storage, Edge Runtime
-supabase db reset           # replay every migration from scratch
-supabase functions serve    # Edge Functions locally
+npx supabase start          # Postgres, Auth, Storage, Edge Runtime
+npx supabase db reset       # replay every migration from scratch
+npx supabase functions serve
 ```
+
+Local ports are in the 544xx range, not Supabase's 543xx defaults, so this stack
+coexists with other local Supabase projects instead of fighting them for 54321/54322.
+The API is on 54421, the database on 54422, Studio on 54423 and the mail catcher on
+54424.
+
+One config subtlety worth knowing: `[auth.email] enable_signup` is the email
+*provider* switch, not a signup-only one. Setting it false returns
+"Email logins are disabled" and breaks the only way into Partner OS. Self-signup is
+prevented by `[auth] enable_signup = false` and by the client passing
+`shouldCreateUser: false`, so people still arrive invite-first.
 
 Sign-in is magic link / email OTP only; there is no password anywhere
 (§20). Locally, Inbucket at http://127.0.0.1:54324 catches the emails. Signup is

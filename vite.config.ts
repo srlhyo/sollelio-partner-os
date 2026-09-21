@@ -42,6 +42,7 @@ export default defineConfig(({ command, mode }) => {
       environment: 'jsdom',
       setupFiles: ['./vitest.setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
+      exclude: ['e2e/**'],
       // Placeholder client configuration. Tests never contact a real project.
       env: {
         VITE_SUPABASE_URL: 'https://partner-os-test.supabase.co',
