@@ -1,0 +1,36 @@
+# Netlify hosts the Partner OS SPA only. All privileged server-side logic and every
+# /v1/* integration endpoint run in Supabase Edge Functions
+# (04_TECHNICAL_ARCHITECTURE.md §2). Do not add Netlify Functions here.
+
+[build]
+  command = "npm run build && npm run check:client-bundle"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--no-audit --no-fund"
+
+# Environment conventions: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY and VITE_APP_ENV
+# are set per context in the Netlify UI, each pointing at that context's Supabase
+# project. No privileged secret is ever configured for this site.
+[context.production.environment]
+  VITE_APP_ENV = "production"
+
+[context.deploy-preview.environment]
+  VITE_APP_ENV = "staging"
+
+[context.branch-deploy.environment]
+  VITE_APP_ENV = "staging"
+
+# SPA routing: /partner/* and /app/* are client-side routes.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"

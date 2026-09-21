@@ -1,0 +1,28 @@
+-- Verification fixture — NOT a migration, never applied to a real project.
+--
+-- Recreates the parts of a Supabase database that migrations assume exist, so the
+-- migration set can be replayed against a plain PostgreSQL container. It
+-- deliberately reproduces Supabase's permissive default privileges, so that
+-- verifying the baseline posture proves our migration actually removes them rather
+-- than passing on an empty database that never had them.
+
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin noinherit;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin noinherit;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role nologin noinherit bypassrls;
+  end if;
+end
+$$;
+
+grant usage on schema public to anon, authenticated, service_role;
+
+-- Supabase's stock defaults: everything new is readable by the API roles.
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;

@@ -1,0 +1,55 @@
+# Sollelio Partner OS — local Supabase stack.
+#
+# Partner OS has its own Supabase project, separate from Sollelio Events V1
+# (04_TECHNICAL_ARCHITECTURE.md §3). `project_id` names the local stack only;
+# staging and production are linked with `supabase link --project-ref <ref>`.
+
+project_id = "sollelio-partner-os"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.migrations]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173/partner", "http://127.0.0.1:5173/app"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = false
+
+# Magic link / email OTP only — partners never manage a password
+# (04_TECHNICAL_ARCHITECTURE.md §20).
+[auth.email]
+enable_signup = false
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = true
+otp_expiry = 900
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
