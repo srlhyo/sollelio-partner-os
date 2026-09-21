@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Sollelio monochrome symbol">
+  <g fill="#25272B">
+    <path d="M8 8h34c4 0 6 2 6 6v17c0 6-3 10-8 13L8 58V8Z"/>
+    <path d="M58 8h26c5 0 8 3 8 8v20L60 50c-5 2-8-1-8-6V18c0-7 2-10 6-10Z"/>
+    <path d="M8 66l32-14c5-2 8 1 8 6v24c0 7-3 10-10 10H16c-5 0-8-3-8-8V66Z"/>
+    <path d="M60 56l32-14v42c0 5-3 8-8 8H58c-4 0-6-2-6-6V69c0-6 3-10 8-13Z"/>
+  </g>
+</svg>
