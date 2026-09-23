@@ -41,7 +41,10 @@ export default defineConfig(({ command, mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: ['./vitest.setup.ts'],
-      include: ['src/**/*.test.{ts,tsx}'],
+      // Build tooling is tested alongside the application: the client-bundle gate
+      // is a release control, and a silent regression in it is invisible until a
+      // deploy leaks something.
+      include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
       exclude: ['e2e/**'],
       // Placeholder client configuration. Tests never contact a real project.
       env: {
