@@ -8,16 +8,19 @@
  * They share infrastructure but are separate user experiences and separate security
  * surfaces. Route paths stay English: they are identifiers, like table and command
  * names. Everything a person reads is pt-PT.
+ *
+ * Each protected route declares the surface it belongs to, and the guard sends
+ * anyone whose role belongs elsewhere to their own home. A magic link is minted
+ * before the role is known, so the surface is settled here, on arrival.
  */
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { NotFound } from './platform/NotFound';
 import { SignIn } from './auth/SignIn';
 import { CheckEmail } from './auth/CheckEmail';
 import { LinkExpired } from './auth/LinkExpired';
-import { RequireSession } from './auth/RequireSession';
+import { RequireSurface } from './auth/RequireSurface';
 import { PartnerHome } from './partner/PartnerHome';
 import { PartnerResources } from './partner/PartnerResources';
-import { RequireStaff } from './internal/RequireStaff';
 import { OrganizationsList } from './internal/OrganizationsList';
 import { OrganizationDetail } from './internal/OrganizationDetail';
 
@@ -33,17 +36,17 @@ export function App() {
       <Route
         path="/partner"
         element={
-          <RequireSession>
+          <RequireSurface surface="partner">
             <PartnerHome />
-          </RequireSession>
+          </RequireSurface>
         }
       />
       <Route
         path="/partner/resources"
         element={
-          <RequireSession>
+          <RequireSurface surface="partner">
             <PartnerResources />
-          </RequireSession>
+          </RequireSurface>
         }
       />
 
@@ -52,21 +55,17 @@ export function App() {
       <Route
         path="/app/organizations"
         element={
-          <RequireSession>
-            <RequireStaff>
-              <OrganizationsList />
-            </RequireStaff>
-          </RequireSession>
+          <RequireSurface surface="internal">
+            <OrganizationsList />
+          </RequireSurface>
         }
       />
       <Route
         path="/app/organizations/:slug/*"
         element={
-          <RequireSession>
-            <RequireStaff>
-              <OrganizationDetail />
-            </RequireStaff>
-          </RequireSession>
+          <RequireSurface surface="internal">
+            <OrganizationDetail />
+          </RequireSurface>
         }
       />
 

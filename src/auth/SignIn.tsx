@@ -11,6 +11,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../platform/supabase';
 import { logger } from '../platform/logger';
 import { Icon, SollelioSymbol } from '../platform/ui/Icon';
+import { PARTNER_HOME, isSafeAppPath } from './destination';
 
 export function AuthLockup() {
   return (
@@ -37,7 +38,12 @@ export function SignIn() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const redirectTo = params.get('redirectTo') ?? '/partner';
+  // Only ever an in-app path: this value reaches Supabase as `emailRedirectTo`, so
+  // an off-origin value would turn a sign-in email into an open redirect. Whether the
+  // destination suits the person's role cannot be known yet — no profile is readable
+  // before the session exists — so RequireSurface settles that on arrival.
+  const requested = params.get('redirectTo');
+  const redirectTo = isSafeAppPath(requested) ? requested : PARTNER_HOME;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

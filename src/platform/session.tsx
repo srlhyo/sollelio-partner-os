@@ -9,6 +9,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
 import { logger } from './logger';
 import { SessionContext, type SessionState } from './session-context';
+import { markAuthReturnResolved } from '../auth/authReturn';
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: 'loading' });
@@ -21,6 +22,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .then(({ data, error }) => {
         if (!active) return;
         if (error) logger.warn('Could not read the stored session', { error: error.message });
+        if (data.session) markAuthReturnResolved();
         setState(
           data.session ? { status: 'signed-in', session: data.session } : { status: 'signed-out' },
         );
@@ -33,6 +35,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
+      // A session existing at any point settles the question of whether the link
+      // that started this page load worked.
+      if (session) markAuthReturnResolved();
       setState(session ? { status: 'signed-in', session } : { status: 'signed-out' });
     });
 

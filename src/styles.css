@@ -118,6 +118,53 @@ a:hover { color: var(--cobalt); }
   width: 100%;
   max-width: 560px;
 }
+/* Signing out looks the same on both surfaces; only where it sits differs. */
+.signout {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  color: var(--ink-2);
+  font: 600 15px var(--font-body);
+  cursor: pointer;
+}
+.signout:hover { color: var(--ink); }
+.signout[disabled] { opacity: 0.6; cursor: progress; }
+
+.signout-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.partner__signout { margin-right: -12px; }
+.partner__signout-error { padding: 0 20px 8px; text-align: right; }
+
+.internal__signout { flex-shrink: 0; padding: 0 10px; font-size: 14px; }
+.internal__signout-error { padding: 0 8px 8px; font-size: 13px; }
+
+.internal__account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+}
+.internal__account-text {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+.internal__account-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .partner__eyebrow {
   font-size: 13px;
   font-weight: 600;

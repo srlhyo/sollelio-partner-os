@@ -23,6 +23,6 @@ test('the internal surface is not reachable without a session', async ({ page })
 test('an expired link explains itself and offers a way back', async ({ page }) => {
   await page.goto('/partner/link-expired');
 
-  await expect(page.getByRole('heading', { name: /Este link já expirou/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Este link já não funciona/i })).toBeVisible();
   await expect(page.getByRole('link', { name: /Pedir novo link/i })).toBeVisible();
 });

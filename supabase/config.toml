@@ -62,6 +62,19 @@ enable_confirmations = true
 double_confirm_changes = true
 secure_password_change = true
 otp_expiry = 900
+# Local only. GoTrue refuses a second link to the same address within
+# `max_frequency` — one minute by default, which is right in production and far too
+# long for a browser suite that signs the same person out and back in. One second is
+# enough for that, and short enough to wait for explicitly where a test needs to.
+# Remote projects are governed by their own dashboard settings, never by this file.
+max_frequency = "1s"
+
+# Local only, same reasoning. GoTrue also caps how many emails the whole instance
+# sends per hour (30 by default), which repeated runs of the browser suite exceed —
+# it signs several people in many times over, and the counter outlives a single run.
+# Remote projects keep their own dashboard limits; nothing here reaches them.
+[auth.rate_limit]
+email_sent = 3600
 
 [edge_runtime]
 enabled = true

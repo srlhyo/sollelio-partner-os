@@ -8,6 +8,10 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { env } from './env';
+// Imported for its side effect as much as anything: this module snapshots the
+// authentication outcome in the URL, and must run before the client below consumes
+// and rewrites it. ES module evaluation order guarantees that.
+import '../auth/authReturn';
 
 export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
   auth: {

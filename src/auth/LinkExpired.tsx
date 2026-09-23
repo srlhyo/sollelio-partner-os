@@ -1,5 +1,12 @@
 /**
- * An expired or already-used magic link. A calm way back, never a dead end.
+ * An email authentication link that can no longer be used.
+ *
+ * Supabase does not distinguish "expired" from "already used" — both come back as
+ * `otp_expired` — so the copy does not claim to know which, and says both plainly.
+ * It also names no lifetime: how long a link lasts is an operational Supabase
+ * setting that differs between environments and can change, and the screen stays
+ * accurate without depending on it.
+ * Nothing about tokens, codes, parameters or status appears here.
  */
 import { Link } from 'react-router-dom';
 import { Icon } from '../platform/ui/Icon';
@@ -15,10 +22,10 @@ export function LinkExpired() {
           <span className="state__icon state__icon--warn" style={{ width: 48, height: 48 }}>
             <Icon name="clock" size={24} />
           </span>
-          <h1 style={{ fontSize: 28, lineHeight: 1.15 }}>Este link já expirou</h1>
+          <h1 style={{ fontSize: 28, lineHeight: 1.15 }}>Este link já não funciona</h1>
           <p style={{ margin: 0 }}>
-            Por segurança, os links de acesso duram 15 minutos. Peça um novo e abra-o no mesmo
-            telemóvel onde o pediu.
+            Este link já foi usado ou entretanto expirou. Peça um novo e abra-o no mesmo
+            telemóvel ou computador onde o pediu.
           </p>
           <p className="field__hint" style={{ margin: 0 }}>
             Vai voltar exatamente ao que estava a tentar abrir.

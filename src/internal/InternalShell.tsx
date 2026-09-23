@@ -8,14 +8,19 @@
  * In Slice 1 the only global destination is Organizations. Pedidos, Problemas,
  * Atualizações and Atividade arrive with their slices and are not listed while they
  * do not exist.
+ *
+ * Signing out reuses the same `useSignOut` the partner surface uses: one session
+ * boundary, one error contract, one place to change.
  */
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Icon, SollelioSymbol } from '../platform/ui/Icon';
+import { useSignOut } from '../auth/useSignOut';
 import { useCurrentProfile } from './useCurrentProfile';
 
 export function InternalShell({ children }: { children: ReactNode }) {
   const profile = useCurrentProfile();
+  const { signOut, pending, error } = useSignOut();
 
   return (
     <div className="internal">
@@ -38,7 +43,12 @@ export function InternalShell({ children }: { children: ReactNode }) {
 
         <div style={{ flexGrow: 1 }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8 }}>
+        {/*
+          The account area the shell already had. The one session control an operator
+          needs goes here, beside their own name — chrome, not operational content,
+          and out of the way of the work in the main column.
+        */}
+        <div className="internal__account">
           <span
             aria-hidden="true"
             style={{
@@ -57,11 +67,25 @@ export function InternalShell({ children }: { children: ReactNode }) {
           >
             {profile?.displayName.slice(0, 1).toUpperCase() ?? '·'}
           </span>
-          <span style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>{profile?.displayName ?? '—'}</span>
+          <span className="internal__account-text">
+            <span className="internal__account-name">{profile?.displayName ?? '—'}</span>
             <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>Sollelio</span>
           </span>
+          <button
+            type="button"
+            className="signout internal__signout"
+            onClick={() => void signOut()}
+            disabled={pending}
+          >
+            {pending ? 'A sair\u2026' : 'Sair'}
+          </button>
         </div>
+
+        {error ? (
+          <p className="signout-error internal__signout-error" role="alert">
+            {error}
+          </p>
+        ) : null}
       </nav>
 
       <main className="internal__main">{children}</main>

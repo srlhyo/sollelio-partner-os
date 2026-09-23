@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useSession } from '../platform/session-context';
 import { LoadingBlock } from '../platform/ui/States';
+import { getAuthReturn, isAuthLinkFailure } from './authReturn';
 
 export function RequireSession({ children }: { children: ReactNode }) {
   const session = useSession();
@@ -25,6 +26,13 @@ export function RequireSession({ children }: { children: ReactNode }) {
   }
 
   if (session.status === 'signed-out') {
+    // Arriving here with no session is ordinary — unless this page load came back
+    // from an email link that could not be used. Then silently showing the sign-in
+    // form explains nothing: say what happened instead.
+    if (isAuthLinkFailure(getAuthReturn(), true) && location.pathname !== '/partner/link-expired') {
+      return <Navigate to="/partner/link-expired" replace />;
+    }
+
     const redirectTo = `${location.pathname}${location.search}`;
     return <Navigate to={`/partner/sign-in?redirectTo=${encodeURIComponent(redirectTo)}`} replace />;
   }

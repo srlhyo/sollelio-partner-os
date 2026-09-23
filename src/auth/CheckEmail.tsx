@@ -1,5 +1,9 @@
 /**
  * "Check your email" is a designed screen, not a toast (03_UX_SPEC.md §20).
+ *
+ * It names no link lifetime. How long a link lasts is `otp_expiry`, an operational
+ * Supabase setting that differs between environments and can change without this
+ * code being touched — copy that quotes it starts lying the moment it does.
  */
 import { Link, useSearchParams } from 'react-router-dom';
 import { Icon } from '../platform/ui/Icon';
@@ -25,7 +29,7 @@ export function CheckEmail() {
           </p>
           <p className="field__hint" style={{ margin: 0, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <Icon name="clock" size={18} />
-            <span>Válido durante 15 minutos. Leva-a diretamente ao que estava a abrir.</span>
+            <span>Leva-a diretamente ao que estava a abrir.</span>
           </p>
         </div>
 
