@@ -55,6 +55,62 @@ begin
 end
 $$;
 
+--    Every SECURITY DEFINER helper pins a safe search_path.
+--
+--    A definer function runs with the owner's rights, so an unpinned search_path
+--    lets a caller who can create objects resolve an unqualified name to something
+--    of their own. Pinning is the control; this fails if a future migration drops
+--    it, and it covers every helper rather than a list that can fall out of date.
+do $$
+declare
+  offender text;
+  setting text;
+  fn record;
+  named text[] := array[
+    'current_profile_id', 'has_active_membership', 'is_staff',
+    'assert_request_assignee_is_active_member'];
+  missing text;
+begin
+  for fn in
+    select p.proname, p.oid, p.proconfig
+      from pg_proc p
+     where p.pronamespace = 'app'::regnamespace
+       and p.prosecdef
+  loop
+    select c into setting
+      from unnest(coalesce(fn.proconfig, array[]::text[])) c
+     where c like 'search_path=%';
+
+    if setting is null then
+      offender := coalesce(offender || ', ', '') || fn.proname || ' (no search_path)';
+      continue;
+    end if;
+
+    -- Safe values: empty, or only the schemas a definer function may trust.
+    if split_part(setting, '=', 2) not in ('""', '', 'pg_catalog', 'pg_catalog, pg_temp', '"pg_catalog", "pg_temp"') then
+      offender := coalesce(offender || ', ', '') || fn.proname || ' (' || setting || ')';
+    end if;
+  end loop;
+
+  if offender is not null then
+    raise exception 'SECURITY DEFINER function(s) without a safely pinned search_path: %', offender;
+  end if;
+
+  -- The assertion must not pass merely because a helper was renamed away.
+  select string_agg(n, ', ') into missing
+    from unnest(named) n
+   where not exists (
+     select 1 from pg_proc p
+      where p.pronamespace = 'app'::regnamespace
+        and p.proname = n
+        and p.prosecdef);
+
+  if missing is not null then
+    raise exception 'Expected SECURITY DEFINER helper(s) missing from app: %', missing;
+  end if;
+end
+$$;
+
 -- 3. Default deny is real: a table created the way a migration creates one must be
 --    unreachable by the API roles before any policy is written.
 create table public.__posture_probe (id integer primary key);

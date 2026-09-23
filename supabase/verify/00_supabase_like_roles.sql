@@ -37,13 +37,21 @@ create table if not exists auth.users (
   email text unique
 );
 
+-- Supabase guards the empty string *before* casting to jsonb. The earlier form
+-- here cast first, so an empty `request.jwt.claims` raised
+-- "invalid input syntax for type json" where production returns NULL. Both fail
+-- closed, but the harness must not diverge from production in the one edge case a
+-- test would want to cover: an authenticated caller whose claims are absent.
+--
+-- `set_config(..., NULL, ...)` leaves an empty string behind once the GUC has been
+-- set in a session, so this is the ordinary unset case, not an exotic one.
 create or replace function auth.uid()
 returns uuid
 language sql
 stable
 as $$
   select nullif(
-    current_setting('request.jwt.claims', true)::jsonb ->> 'sub',
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub',
     '')::uuid;
 $$;
 

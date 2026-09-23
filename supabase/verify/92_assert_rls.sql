@@ -83,8 +83,14 @@ begin
   n := pg_temp.count_as(helio, 'select id from public.organization_products');
   if n <> 1 then raise exception 'Staff should see organization_products, saw %', n; end if;
 
+  -- Compared against the real total rather than a fixed number: the property is
+  -- "staff see every membership", and a magic count breaks whenever a later slice
+  -- adds a fixture without weakening anything.
   n := pg_temp.count_as(helio, 'select id from public.organization_memberships');
-  if n <> 3 then raise exception 'Staff should see every membership, saw %', n; end if;
+  if n <> (select count(*) from public.organization_memberships) then
+    raise exception 'Staff should see every membership, saw % of %',
+      n, (select count(*) from public.organization_memberships);
+  end if;
 
   -- Staff hold no membership rows of their own.
   if exists (
