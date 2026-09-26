@@ -64,9 +64,11 @@ begin
     raise exception 'public.partner_requests reads something other than app.partner_request_projection.';
   end if;
 
+  -- PostgreSQL 15 prints the membership argument as pr.organization_id; 17 drops the
+  -- alias of a single-relation view. Only that alias is optional.
   def := pg_get_viewdef('public.partner_requests'::regclass, true);
   if def !~ 'published_at IS NOT NULL' or def !~ 'assignee_profile_id = app\.current_profile_id\(\)'
-     or def !~ 'app\.has_active_membership\(pr\.organization_id\)' then
+     or def !~ 'app\.has_active_membership\((pr\.)?organization_id\)' then
     raise exception 'public.partner_requests predicate changed: %', def;
   end if;
 
