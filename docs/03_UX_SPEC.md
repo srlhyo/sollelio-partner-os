@@ -101,6 +101,8 @@ Should display only what helps immediate action:
 
 When a Request has a deadline, show it in human form — “até sexta”, “até amanhã”, a date when it is further out — on both the card and the detail view. A deadline the partner cannot see is worse than no deadline at all.
 
+Deadlines are Lisbon days (Europe/Lisbon, the V0 operational zone; `05 §4`): the same deadline shows the same day to a partner in Portugal or in Brazil, and "até sexta" means by the end of Friday in Lisbon. The internal editor names the zone next to the deadline field.
+
 When there is no deadline, show **no deadline UI**: no placeholder, no “sem prazo”, no empty slot. Most Requests will have none, and `02_OPERATING_MODEL.md §2` deliberately keeps it that way. The absence of a deadline element is what makes the present ones mean something.
 
 ### Effort
@@ -331,7 +333,7 @@ Choosing type **approval** generates the approval response automatically. Do not
 
 Question types available in V0 are long text, single choice, boolean and approval. That is deliberately the set the partner surfaces render; adding a type is a product decision, not an authoring convenience.
 
-Must include **Preview as Partner** before publication.
+Must include **Preview as Partner** before publication. The draft is saved first and the preview is rendered by the partner's own detail component from the server-side partner projection (`05 §12.3`); if saving fails, the preview does not open. Publication sends the revision the preview showed, so a later edit makes it stale.
 
 ## 17. Create Update
 

@@ -112,6 +112,14 @@ Validate the core question: "What do I need to do now?"
 - response controls;
 - submission success state.
 
+### Checkpoints inside Slice 2
+
+Slice 2 is delivered in checkpoints, each with its own review. C2 regroups creation, preview, publication and the partner read path into one checkpoint; the comment in the C1 migration that assigned lifecycle commands to "C3/C4" predates this and is superseded here (the migration itself is not edited).
+
+- **C1 — persistence and authorization boundary** (`20260923120000`). Schema, RLS, `partner_requests`. Done: applied to staging and verified structurally and behaviourally.
+- **C2 — authoring and publication** (`20260925160000`). Staff create, save and edit drafts; preview exactly what the partner will see; publish the previewed revision. The assigned partner sees the Request on Home ("Precisa de si") and in the detail, **read-only**: questions are listed, with no answer inputs and no submit control. Staff read the published Request with its internal details, notes (read-only) and activity. Commands `create_request`, `update_request_draft`, `preview_request`, `publish_request` (`05 §13`). Routes: `/app/organizations/:slug/requests`, `…/requests/new`, `…/requests/:id` (editor for a draft, detail otherwise), `…/requests/:id/preview`; `/partner`, `/partner/requests/:id`. A Request of another organization is "not found" inside an organization's routes; for the partner, a Request that does not exist and one she may not see look the same. Queue per organization only, no global queue. Ordering: Home by deadline (none last) then newest publication; internal queue by group (Sollelio, partner, drafts, closed), then deadline, then most recently updated. **C2 is a development/staging delivery: it is not ready for the pilot in production**, because the partner cannot respond yet.
+- **Next checkpoints (scope to be confirmed at their review):** partner submission and return to the partner; reassignment, completion and cancellation; the membership-deactivation and organization-archival guards; post-publication edits; `record_resource_opened`. Production receives Slice 2 only once the partner can respond.
+
 ### Pilot checkpoint
 
 Use with Nádia immediately:

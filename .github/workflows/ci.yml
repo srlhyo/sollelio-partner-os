@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           shopt -s globstar
-          deno check supabase/functions/**/*.ts
+          deno check --config supabase/functions/deno.json supabase/functions/**/*.ts
 
   e2e:
     name: Browser E2E (real Supabase stack)

@@ -21,6 +21,7 @@ import { LinkExpired } from './auth/LinkExpired';
 import { RequireSurface } from './auth/RequireSurface';
 import { PartnerHome } from './partner/PartnerHome';
 import { PartnerResources } from './partner/PartnerResources';
+import { PartnerRequestDetail } from './partner/PartnerRequestDetail';
 import { OrganizationsList } from './internal/OrganizationsList';
 import { OrganizationDetail } from './internal/OrganizationDetail';
 
@@ -38,6 +39,14 @@ export function App() {
         element={
           <RequireSurface surface="partner">
             <PartnerHome />
+          </RequireSurface>
+        }
+      />
+      <Route
+        path="/partner/requests/:id"
+        element={
+          <RequireSurface surface="partner">
+            <PartnerRequestDetail />
           </RequireSurface>
         }
       />

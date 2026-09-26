@@ -25,8 +25,17 @@ security posture still holds.
 | --- | --- |
 | `…120000_baseline_security_posture` | Phase 0 — no domain tables |
 | `…130000_slice1_organizations_products_resources` | Wave 1 — Slice 1 |
+| `20260923120000_slice2_requests_and_activity` | Wave 2 — Slice 2, C1 (Requests persistence and RLS) |
+| `20260925160000_slice2_c2_request_authoring` | Wave 2 — Slice 2, C2 (revision, resource link, one partner projection, command receipts, the C2 commands) |
 
-Wave 2 (requests) does not exist yet and must not be written before Slice 2 starts.
+Migrations are never edited once committed; a checkpoint that evolves an earlier
+object adds a new migration (C2 redefines `partner_requests` on top of
+`app.partner_request_projection` without touching the C1 file).
+
+The C2 commands are SQL functions executable only by `service_role` and are called
+by the `request-commands` Edge Function (`05_DATA_MODEL_AND_API.md` §13). Locally,
+`supabase start` serves the function; if the stack was started before the function
+existed, run `npx supabase functions serve`.
 
 One thing Slice 1 carries that is not domain schema: every function it creates
 revokes EXECUTE from PUBLIC explicitly. PostgreSQL grants EXECUTE on new functions to

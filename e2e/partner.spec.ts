@@ -17,7 +17,8 @@ test('Home offers the canonical resources', async ({ page }) => {
   await page.goto('/partner');
 
   await expect(page.getByRole('heading', { name: 'Acesso rápido' })).toBeVisible();
-  const events = page.getByRole('link', { name: /Sollelio Events/ });
+  // Scoped to the section: Request cards above (Slice 2) may also name the product.
+  const events = page.getByRole('region', { name: 'Acesso rápido' }).getByRole('link', { name: /Sollelio Events/ });
   await expect(events).toBeVisible();
   await expect(events).toHaveAttribute('href', 'https://events.example.test/do-luxo-a-mesa');
   await expect(events).toHaveAttribute('rel', /noopener/);

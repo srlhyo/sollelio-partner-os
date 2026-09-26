@@ -110,6 +110,8 @@ Commands validate permissions, current state and payload shape, and write relate
 
 The canonical command list is `05_DATA_MODEL_AND_API.md §13`.
 
+Pattern used from Slice 2 C2: the Edge Function verifies the session with the Auth server, resolves the actor, validates the body, and calls one transactional SQL function per command. Those functions are `SECURITY INVOKER`, executable only by `service_role`, and re-check the actor. This keeps privileged entry in Edge Functions (§2) while the multi-row atomicity lives in one database transaction.
+
 ## 9. Events V1 integration
 
 V0 integration is server-to-server.

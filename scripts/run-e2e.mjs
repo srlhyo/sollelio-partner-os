@@ -44,6 +44,9 @@ const result = spawnSync('npx', ['playwright', 'test', ...process.argv.slice(2)]
     E2E_SUPABASE_ANON_KEY: status.ANON_KEY,
     E2E_SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
     E2E_MAIL_URL: status.MAILPIT_URL ?? status.INBUCKET_URL ?? 'http://127.0.0.1:54424',
+    // Local database, for the Request suites that hold row locks or set states no C2
+    // command can reach yet. Never a remote URL: the helpers refuse anything else.
+    E2E_DB_URL: status.DB_URL ?? '',
   },
 });
 

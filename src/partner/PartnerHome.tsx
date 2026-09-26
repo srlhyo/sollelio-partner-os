@@ -1,11 +1,9 @@
 /**
- * Partner Home — Slice 1.
+ * Partner Home.
  *
- * Home's job is "what do I need to do now?". Until Requests exist there is nothing
- * that can need doing, so this slice answers the other half of the promise: the
- * canonical links, always current, always here. There is deliberately no attention
- * block and no Report a problem control — showing either would advertise a feature
- * that does not exist (06_BUILD_PLAN.md, Slice 1 Partner UI).
+ * Home's job is "what do I need to do now?". "Precisa de si" comes first (Slice 2),
+ * then the canonical links. There is still no Report a problem control: showing it
+ * would advertise a feature that does not exist yet (06_BUILD_PLAN.md).
  */
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAsync } from '../platform/useAsync';
@@ -18,6 +16,7 @@ import { useOrganizationContext } from '../modules/organizations/useOrganization
 import { PartnerShell } from './PartnerShell';
 import { ResourceList } from './ResourceList';
 import { OrganizationChooser, NoMembership } from './OrganizationStates';
+import { AttentionSection } from './AttentionSection';
 
 export function PartnerHome() {
   const session = useSession();
@@ -73,6 +72,8 @@ export function PartnerHome() {
           <span className="partner__eyebrow">O seu espaço · {context.organization.name}</span>
           <h1 className="partner__greeting">{firstName ? `Olá, ${firstName}` : 'Olá'}</h1>
         </div>
+
+        <AttentionSection organizationId={context.organization.id} />
 
         <section className="section" aria-labelledby="quick-access">
           <h2 className="section__label" id="quick-access">

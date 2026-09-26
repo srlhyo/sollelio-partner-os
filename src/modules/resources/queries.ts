@@ -9,7 +9,7 @@
 import { supabase } from '../../platform/supabase';
 import type { Resource } from './types';
 
-interface ResourceRow {
+export interface ResourceRow {
   id: string;
   organization_id: string;
   product_id: string | null;
@@ -23,7 +23,8 @@ interface ResourceRow {
 
 const COLUMNS = 'id, organization_id, product_id, name, type, url, status, partner_visible, sort_order';
 
-function toResource(row: ResourceRow): Resource {
+/** Also used for the Resource a staff preview returns: the same row, the same shape. */
+export function toResource(row: ResourceRow): Resource {
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -64,4 +65,21 @@ export async function fetchAllResources(organizationId: string): Promise<Resourc
 
   if (error) throw new Error(error.message);
   return (data ?? []).map(toResource);
+}
+
+/**
+ * One Resource as the partner may see it, or null. RLS already limits partners to
+ * active, partner-visible links in their organization; the filters restate that.
+ */
+export async function fetchVisibleResource(id: string): Promise<Resource | null> {
+  const { data, error } = await supabase
+    .from('resources')
+    .select(COLUMNS)
+    .eq('id', id)
+    .eq('status', 'active')
+    .eq('partner_visible', true)
+    .maybeSingle<ResourceRow>();
+
+  if (error) throw new Error(error.message);
+  return data ? toResource(data) : null;
 }
