@@ -59,12 +59,15 @@ end
 $$;
 
 -- 3. `partner_requests` is a security-barrier view with exactly the contract --
+-- C1 defined fifteen columns. C2 (20260925160000) appends `resource_id` as the
+-- sixteenth and keeps the first fifteen in name and order; the contract asserted
+-- here is the current one (05_DATA_MODEL_AND_API.md §12.3).
 do $$
 declare
   want text[] := array[
     'id', 'organization_id', 'product_id', 'product_name', 'type', 'title', 'context',
     'requested_action', 'estimated_effort_minutes', 'due_at', 'partner_state',
-    'published_at', 'completed_at', 'cancelled_at', 'related_update_id'];
+    'published_at', 'completed_at', 'cancelled_at', 'related_update_id', 'resource_id'];
   got text[];
   leaked text[];
   barrier boolean;
@@ -84,7 +87,7 @@ begin
   -- Named individually, so that widening the view is a visible act rather than a
   -- silent one. These are the columns §12.3 excludes.
   select array_agg(c) into leaked
-    from unnest(array['status', 'next_actor', 'assignee_profile_id', 'created_by',
+    from unnest(array['status', 'next_actor', 'assignee_profile_id', 'created_by', 'revision',
                       'completion_criteria', 'internal_owner_profile_id', 'priority']) c
    where c = any (got);
   if leaked is not null then

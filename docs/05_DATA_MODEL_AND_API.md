@@ -103,6 +103,7 @@ Internal base table. Partners never select from it (§12.3).
 - id uuid PK
 - organization_id FK NOT NULL
 - product_id FK nullable
+- resource_id FK nullable — the one canonical Resource the partner needs to act (added in C2)
 - type enum(review, approval, question, test, task)
 - status enum(draft, needs_partner, needs_sollelio, completed, cancelled)
 - next_actor enum(partner, sollelio, none)
@@ -120,6 +121,7 @@ Internal base table. Partners never select from it (§12.3).
 - completed_at nullable
 - cancelled_at nullable
 - updated_at
+- revision integer NOT NULL default 1 — aggregate version (added in C2)
 
 V0 has no `in_progress` and no `blocked` state. Every non-terminal state has exactly one unambiguous next actor, as required by `01_PRODUCT_SPEC.md §5` and `02_OPERATING_MODEL.md §3`. Reintroduce additional states only when a real pilot Request cannot be represented.
 
@@ -133,6 +135,27 @@ Consistency rules (enforced by check constraints and by the domain commands):
 - `assignee_profile_id` must be a profile with an **active** membership in `organization_id`.
 
 **Effort storage.** `estimated_effort_minutes` is an integer. The `<1 min` scale from `02_OPERATING_MODEL.md §2` is stored as `1` and rendered as `<1 min`, never as `1 min`. Zero is not a valid value.
+
+**Deadlines (C2).** `due_at` stays a `timestamptz`. Its operational time zone is **Europe/Lisbon** for V0: a deadline chosen as a day means 23:59:59 of that day in Lisbon, with the offset of that very day from the time-zone database (UTC+1 in summer, UTC+0 in winter; never a fixed offset). Every surface shows deadlines as Lisbon days, whatever the viewer's browser zone, so the same deadline reads as the same day in Portugal and in Brazil; the internal editor labels the field "hora de Lisboa". Opening and saving a draft without changing the day sends the stored instant unchanged. Relative wording ("até hoje", "até amanhã", "até sexta") compares Lisbon days.
+
+**Revision (C2).** `revision` is the version of the whole Request aggregate: the row, its `request_fields` and its `request_internal_details`. It is never written by a caller: a `BEFORE UPDATE` trigger on `requests` always sets it to the previous value plus one, and triggers on `request_fields` and `request_internal_details` touch the parent row on every insert, update and delete. Every relevant change therefore moves it, and no two versions of one Request share a number. `update_request_draft` requires the revision the caller read; `publish_request` requires the revision `preview_request` returned. Internal notes are not part of the aggregate and do not move it.
+
+**Resource link (C2).** `resource_id` references `resources`; the URL itself is read from `resources` at render time and nowhere else. Enforced for every writer by trigger: the Resource belongs to the Request's organization, and when both the Request and the Resource carry a product they agree. Whether the Resource is active and partner-visible is a publication rule (§13): a draft may point at a link still being prepared. A Resource that later stops being active or visible simply stops being shown to the partner; the partner UI then says the link is no longer available, without exposing it.
+
+### request_command_receipts (C2)
+
+Minimum persistent support for replaying the two commands a person may retry — not a generic command log.
+
+- command enum(create_request, publish_request)
+- idempotency_key uuid — for create, the client-generated Request id; for publish, one key per publication attempt
+- actor_profile_id FK
+- request_id FK (deferrable)
+- payload_hash text — md5 of the ORIGINAL canonical payload (jsonb), for create; of `{request_id, expected_revision}`, for publish
+- result jsonb — the original outcome, returned on replay
+- created_at
+- PRIMARY KEY (command, idempotency_key)
+
+RLS enabled, no policies, no access for anon or authenticated; only `service_role` (the commands) reads and writes it.
 
 ### request_internal_details
 
@@ -463,7 +486,7 @@ Partners **never** SELECT the `requests`, `issues` or `updates` base tables. RLS
 
 Partner reads go through explicit projections — PostgreSQL views created `WITH (security_barrier = true)`, owned by a privileged role, with `security_invoker` left off so the view's own predicate governs access. Each view carries its own membership/assignment predicate, and `SELECT` is granted on the view, not on the base table. An equivalent server-side read model (Edge Function returning the same shape) is acceptable; the column set is the contract, not the transport.
 
-**`partner_requests`** — predicate: `published_at IS NOT NULL` AND `assignee_profile_id` = calling profile AND active membership in `organization_id`. Columns:
+**`partner_requests`** — predicate: `published_at IS NOT NULL` AND `assignee_profile_id` = calling profile AND active membership in `organization_id`. Sixteen columns, in this order:
 
 - id, organization_id, product_id, product_name
 - type, title, context, requested_action
@@ -471,8 +494,11 @@ Partner reads go through explicit projections — PostgreSQL views created `WITH
 - partner_state enum(needs_you, with_sollelio, done, cancelled) derived from `status`
 - published_at, completed_at, cancelled_at
 - related_update_id
+- resource_id (sixteenth, appended in C2; the first fifteen are unchanged in name and order)
 
-Excluded: `status`, `next_actor`, `assignee_profile_id`, `created_by`, and everything in `request_internal_details`.
+Excluded: `status`, `next_actor`, `assignee_profile_id`, `created_by`, `revision`, and everything in `request_internal_details`.
+
+**One projection (C2).** The partner-facing shape — its column list, the product join and the `status` → `partner_state` mapping — is defined once, in `app.partner_request_projection`. That view carries the sixteen columns plus `assignee_profile_id` as predicate support only; it lives in the `app` schema, which PostgREST does not expose, and neither anon nor authenticated may read it. `public.partner_requests` is that projection filtered by the predicate above, with an explicit column list, `security_barrier`, owner `postgres` and `security_invoker` off, exactly as in C1. The staff preview (`preview_request`, §13) reads the same projection for one Request id, so the preview and the partner can never disagree about the shape. There is no client-side mapping of Request rows into the partner shape.
 
 **`partner_issues`** — predicate: `reporter_profile_id` = calling profile AND active membership in `organization_id`. Columns:
 
@@ -506,6 +532,8 @@ Excluded: `status`, `created_by`, `archived_at`, audience composition.
 | request_submissions | SELECT own submissions on a Request visible through `partner_requests` |
 | request_answers | SELECT where the parent submission is accessible |
 | request_internal_notes | **No access** |
+| request_command_receipts | **No access** (C2; commands only) |
+| app.partner_request_projection | **No access** (C2; read through `partner_requests`, or by the staff preview command) |
 | updates | **No access.** Read via `partner_updates` |
 | update_audiences | **No access** |
 | update_receipts | SELECT own rows. Writes only via commands |
@@ -535,7 +563,11 @@ Commands validate the caller's permission and the object's current state, write 
 
 ### Request commands
 
+C2 implements `create_request`, `update_request_draft`, `preview_request` and `publish_request` (contract below). The others remain as specified here for later checkpoints (`06_BUILD_PLAN.md`, Slice 2).
+
 - `create_request` — for `type = approval`, generates the system approval fields (§4).
+- `update_request_draft` — replaces the editable content of a draft at the expected revision (C2).
+- `preview_request` — staff-only read of the partner-facing shape of one Request, draft or published (C2).
 - `publish_request` — draft => needs_partner.
 - `submit_request` — needs_partner => needs_sollelio. **Validates the whole submission atomically server-side**: every required field answered, each answer's shape matching its `request_fields.type`, and every `single_choice` value a member of that field's `options`. A submission that fails any check is rejected in full; no partial answers are written.
 - `return_request_to_partner` — needs_sollelio => needs_partner. Requires a new question or action.
@@ -544,6 +576,45 @@ Commands validate the caller's permission and the object's current state, write 
 - `cancel_request` — => cancelled.
 
 There is no `start_request`.
+
+#### C2 command contract
+
+**Where they run.** `POST /functions/v1/request-commands/{create|update|preview|publish}` — one Edge Function. It validates the bearer token with the Auth server (`auth.getUser`, never a local decode), resolves the caller's profile from the returned user id and requires `is_sollelio_staff`; the actor is never read from the body. It checks the body shape and size, then calls one transactional SQL function per command: `public.cmd_create_request`, `cmd_update_request_draft`, `cmd_preview_request`, `cmd_publish_request`. These are `SECURITY INVOKER`, executable only by `service_role` (EXECUTE revoked from PUBLIC, anon and authenticated), and they check again that the actor is an existing staff profile. No new direct write reaches anon or authenticated on any Request table.
+
+**Bodies.**
+
+- create: `{ request_id, payload }` — `request_id` is a UUID generated by the client, once per new draft.
+- update: `{ request_id, expected_revision, payload }` — full replacement of the editable content; the organization never changes.
+- preview: `{ request_id }`.
+- publish: `{ request_id, expected_revision, idempotency_key }` — `expected_revision` is the one the preview returned.
+
+`payload`: `organization_id` (create only), `assignee_profile_id`, `type`, `title`, `context`, `requested_action`, `estimated_effort_minutes`, `due_at`, `product_id`, `resource_id`, `internal { completion_criteria, internal_owner_profile_id, priority }`, `fields [{ label, help_text, type, required, options }]`. Unknown keys are rejected. Author fields are `long_text`, `single_choice` or `boolean`; `approval` fields are never accepted from a client, and an approval Request accepts no author fields.
+
+**Saving a draft** needs only what the schema needs: organization, assignee, type, title, requested action and effort. Internal details are optional in a draft; priority or owner without a completion criterion is rejected, because the internal-details row requires one. Organization must be `active`; the assignee must hold an active membership (not staff); a product must be linked to the organization through an active `organization_products` row and be active; a Resource must belong to the organization and agree with the product. The internal owner, when given, must be staff (default: the actor).
+
+**Publication requirements** (checked under locks, see below): the Request is a draft at exactly the expected revision; the organization is active; the assignee's membership is active; the product link is active; the Resource, if any, is active and partner-visible; a completion criterion exists; `question`, `review` and `test` have at least one author field (`task` may have none); `approval` has its two system fields; every `single_choice` field has at least two distinct, non-empty options. A deadline in the past is allowed (the UI warns). Effects: `status = needs_partner`, `next_actor = partner`, `published_at = now()`, one `request.published` event. `request.created` is written by create; update writes no event (no V0 event type exists for it); preview writes nothing.
+
+**Technical limits (new in C2, mirrored by the client, never silently truncated):** body 64 KB; title 200 characters; context, requested action and completion criterion 4000; 20 fields per Request; field label 300; help text 1000; 20 options per `single_choice`; option 200. Surrounding whitespace is trimmed, and an optional text empty after trimming is stored as NULL. Effort is any integer ≥ 1 (the UI offers `<1`, `~2`, `~3`, `~5`, `~10`, `~15` and a free value).
+
+**Replay and conflicts.**
+
+- create: the receipt for `request_id` is claimed first (primary key). An identical replay by the same actor returns the original result with `replayed: true` and writes nothing, also after the draft has since been edited, because the comparison is with the original payload. The same id with a different payload is `idempotency_conflict`. Concurrent duplicates wait on the key and then replay or conflict.
+- publish: the receipt for `idempotency_key` is claimed first. The same key with the same request and revision replays the original outcome with no new event; the same key with another revision is `idempotency_conflict`; any other attempt on a Request that is no longer a draft is `invalid_state` — never a silent `alreadyPublished`.
+- update: no receipt; a retried update at an old revision is `stale_revision`.
+
+**Atomicity and locks.** Each command is one transaction: Request, fields, internal details, event and receipt together, or nothing. Lock order, used by every C2 command: receipt key → Request row (`FOR UPDATE`) → organization → assignee membership → `organization_products`/product → Resource (all `FOR SHARE`). A concurrent change to a dependency either commits first and is seen by the re-check, or waits until the publication commits. No global locks.
+
+**Preview.** Returns `{ request_id, organization_id, revision, status, simulated_publication, request, fields, resource, resource_unavailable }` from one SQL statement (one snapshot): `request` is the `app.partner_request_projection` row without `assignee_profile_id`; for a draft `partner_state` is shown as `needs_you` and `simulated_publication` is true; `fields` are the Request's `request_fields` rows; `resource` is the Resource row only when it is the organization's, active and partner-visible (exactly what the partner could read), otherwise null with `resource_unavailable: true`. The UI saves before previewing; if saving fails, the preview does not open.
+
+**Client behaviour (C2).**
+
+- One save at a time: while a save is in flight the whole editor is disabled (with a spoken progress message) and the save function itself refuses to start a second one.
+- Ambiguous outcome — the connection failed after sending, a 5xx, or a 2xx without the function's envelope: the attempt is kept in memory (never in browser storage) and settled before anything newer is saved. A create is settled by repeating it exactly (same `request_id`, same payload; the server replays). An update is settled by reading the aggregate: the expected revision unchanged means it did not land and it is repeated; our content at a newer revision means it landed; anything else is another session's change. A publish is settled by repeating the same attempt (same key, same revision); no new publish attempt is offered meanwhile. The same key is never reused with a changed payload, and no new id is generated to get past a conflict.
+- Real conflict (`stale_revision`, or another session's content found while settling): the local form is kept and nothing is written until the operator chooses "Ver a versão guardada" (discards the form) or "Substituir pela minha versão" (an explicit update at the server's current revision).
+- Any HTTP 401 — from the function or from the gateway, with or without a body — is an ended session: the UI offers the existing sign-in flow back to the same page and says plainly that unsaved changes are lost when leaving it.
+- Reads of one version: the editor's aggregate (row with internal details, then fields) is confirmed against the current revision and re-read if an edit landed in between; the preview and the internal row that supplies the recipient and checklist must carry the same revision before the page offers publication. The partner projection and internal data stay separate objects.
+
+**Errors** (`{ error: { code, message, details? } }`): 401 `unauthenticated`; 403 `no_profile`, `not_staff`; 404 `not_found`; 409 `stale_revision`, `invalid_state`, `idempotency_conflict`, `conflict`; 413 `payload_too_large`; 422 `validation_failed` (with `details.errors[{field, code, message}]`), `organization_not_active`, `assignee_not_active_member`, `product_not_linked`, `resource_not_available`, `publish_requirements` (with `details.errors`); 503 `busy`; 500 `internal_error`. SQL raises them as SQLSTATE `RQ001`–`RQ011`.
 
 ### Update commands
 
@@ -708,6 +779,7 @@ Each wave corresponds exactly to one slice in `06_BUILD_PLAN.md`. Do not create 
 - request_internal_notes
 - activity_events
 - `partner_requests` projection
+- C2 (`20260925160000_slice2_c2_request_authoring`): `requests.revision`, `requests.resource_id`, `app.partner_request_projection` (and `partner_requests` redefined on it), `request_command_receipts`, the four C2 command functions
 - `record_resource_opened` — canonical-resource instrumentation begins here, since it needs `activity_events`. Resources themselves ship in Slice 1; their open-tracking starts one slice later.
 
 ### Wave 3 — Slice 3 (Updates)

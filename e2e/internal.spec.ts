@@ -49,10 +49,11 @@ test('the operator sees the organization members', async ({ page }) => {
 test('only the tabs whose slices exist are offered', async ({ page }) => {
   await page.goto('/app/organizations/do-luxo-a-mesa');
 
+  await expect(page.getByRole('link', { name: 'Pedidos' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Recursos' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Pessoas' })).toBeVisible();
 
-  for (const absent of ['Pedidos', 'Problemas', 'Atualizações', 'Atividade']) {
+  for (const absent of ['Problemas', 'Atualizações', 'Atividade']) {
     await expect(page.getByRole('link', { name: absent })).toHaveCount(0);
   }
 });

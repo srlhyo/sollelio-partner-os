@@ -83,3 +83,8 @@ policy = "oneshot"
 [storage]
 enabled = true
 file_size_limit = "50MiB"
+
+# C2 Request commands. The gateway verifies the JWT as a first gate; the function
+# then validates the session with the Auth server and resolves the staff profile.
+[functions.request-commands]
+verify_jwt = true

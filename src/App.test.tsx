@@ -76,6 +76,20 @@ vi.mock('./modules/resources/queries', () => ({
   fetchAllResources: async () => state.resources,
 }));
 
+// Slice 2 reads. Home asks for what needs the partner; with no Requests the
+// attention block shows its empty state. Request flows have their own tests.
+vi.mock('./modules/requests/queries', () => ({
+  fetchPartnerAttention: () => Promise.resolve([]),
+  fetchPartnerRequest: () => Promise.resolve(null),
+  fetchRequestFields: () => Promise.resolve([]),
+  fetchOrganizationRequests: () => Promise.resolve([]),
+  fetchInternalRequest: () => Promise.resolve(null),
+  fetchRequestRevision: () => Promise.resolve(null),
+  fetchInternalNotes: () => Promise.resolve([]),
+  fetchRequestActivity: () => Promise.resolve([]),
+  fetchStaffProfiles: () => Promise.resolve([]),
+}));
+
 vi.mock('./modules/products/queries', () => ({
   fetchOrganizationProducts: async () => [],
 }));
@@ -594,7 +608,9 @@ describe('internal surface', () => {
     renderAt('/app/organizations/do-luxo-a-mesa');
 
     await screen.findByText('Espaço da organização');
-    for (const absent of ['Pedidos', 'Problemas', 'Atualizações', 'Atividade']) {
+    // Pedidos arrives with Slice 2 (C2); the others with their own slices.
+    expect(screen.getByRole('link', { name: 'Pedidos' })).toBeDefined();
+    for (const absent of ['Problemas', 'Atualizações', 'Atividade']) {
       expect(screen.queryByRole('link', { name: absent })).toBeNull();
     }
   });

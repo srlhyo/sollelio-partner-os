@@ -15,6 +15,14 @@ test('a deep link into the partner surface reaches the sign-in flow', async ({ p
   expect(decodeURIComponent(page.url())).toContain('redirectTo=/partner/resources');
 });
 
+test('a deep link to a Request survives the trip through sign-in', async ({ page }) => {
+  const path = '/partner/requests/7f1c1f6e-3f55-4d69-9b3c-1b2f0b5a9d10';
+  await page.goto(path);
+
+  await expect(page).toHaveURL(/\/partner\/sign-in/);
+  expect(decodeURIComponent(page.url())).toContain(`redirectTo=${path}`);
+});
+
 test('the internal surface is not reachable without a session', async ({ page }) => {
   await page.goto('/app/organizations');
   await expect(page).toHaveURL(/\/partner\/sign-in/);

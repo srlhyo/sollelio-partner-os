@@ -22,7 +22,9 @@ export type IconName =
   | 'edit'
   | 'org'
   | 'person'
-  | 'refresh';
+  | 'refresh'
+  | 'eye'
+  | 'send';
 
 const PATHS: Record<IconName, string> = {
   app: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
@@ -45,6 +47,8 @@ const PATHS: Record<IconName, string> = {
   org: 'M4 3h16v18H4zM9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3',
   person: 'M12 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7M4.5 20a7.5 7.5 0 0 1 15 0',
   refresh: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
+  eye: 'M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5',
+  send: 'M4 12l16-8-6 16-2.5-6.5z',
 };
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

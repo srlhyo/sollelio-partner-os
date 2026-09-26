@@ -76,13 +76,37 @@ export default defineConfig({
       use: { ...devices['Pixel 7'], storageState: '.auth/partner.json' },
     },
     {
+      // Slice 2 C2, through the UI: the operator creates, previews and publishes; the
+      // partner then reads it. Uses both stored sessions; must finish before either
+      // logout project revokes them.
+      name: 'requests',
+      testMatch: /[\\/]requests\.spec\.ts$/,
+      dependencies: ['setup'],
+      use: { ...devices['Desktop Chrome'], storageState: '.auth/staff.json' },
+    },
+    {
+      // Slice 2 C2 saving under slow, lost and refused responses, and deadlines in
+      // Lisbon time with the browser in other zones. Staff session.
+      name: 'requests-recovery',
+      testMatch: /requests-recovery\.spec\.ts/,
+      dependencies: ['setup'],
+      use: { ...devices['Desktop Chrome'], storageState: '.auth/staff.json' },
+    },
+    {
+      // Slice 2 C2 commands and authorization against the real stack, with its own
+      // synthetic people and real password sessions. No browser page is needed.
+      name: 'request-commands',
+      testMatch: /request-commands\.spec\.ts/,
+      use: { storageState: { cookies: [], origins: [] } },
+    },
+    {
       // Signs in for itself and revokes that session server-side at the end, which
       // invalidates `.auth/staff.json`. Only the `internal` project uses that file,
       // so depending on it is enough to keep the suite deterministic — no reliance
       // on an access token outliving revocation.
       name: 'staff-logout',
       testMatch: /[\\/]staff-logout\.spec\.ts$/,
-      dependencies: ['internal'],
+      dependencies: ['internal', 'requests', 'requests-recovery'],
       use: { ...devices['Desktop Chrome'], storageState: { cookies: [], origins: [] } },
     },
     {
@@ -93,7 +117,7 @@ export default defineConfig({
       // rather than depend on that.
       name: 'partner-logout',
       testMatch: /[\\/]logout\.spec\.ts$/,
-      dependencies: ['partner', 'internal', 'partner-boundary', 'post-auth-routing'],
+      dependencies: ['partner', 'internal', 'partner-boundary', 'post-auth-routing', 'requests', 'requests-recovery'],
       use: { ...devices['Pixel 7'], storageState: { cookies: [], origins: [] } },
     },
   ],

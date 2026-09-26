@@ -1,12 +1,9 @@
 /**
- * Organization detail — Slice 1 tabs only.
+ * Organization detail.
  *
- * The documented sub-navigation also carries Pedidos, Problemas, Atualizações and
- * Atividade (01_PRODUCT_SPEC.md §9). Those tabs appear when their slices do; listing
- * them now would promise screens that do not exist.
- *
- * No queues and no Request counts here: the overview becomes a work queue in
- * Slice 2, when there is work to queue.
+ * The documented sub-navigation also carries Problemas, Atualizações and Atividade
+ * (01_PRODUCT_SPEC.md §9). Those tabs appear when their slices do; listing them now
+ * would promise screens that do not exist. Pedidos arrives with Slice 2 (C2).
  */
 import { NavLink, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { useAsync } from '../platform/useAsync';
@@ -17,6 +14,10 @@ import { InternalShell, ScopeBar } from './InternalShell';
 import { OrganizationOverview } from './OrganizationOverview';
 import { OrganizationResources } from './OrganizationResources';
 import { OrganizationPeople } from './OrganizationPeople';
+import { OrganizationRequests } from './requests/OrganizationRequests';
+import { RequestEditor } from './requests/RequestEditor';
+import { RequestRoute } from './requests/RequestRoute';
+import { RequestPreviewPage } from './requests/RequestPreviewPage';
 
 /**
  * Tab targets are absolute, built from the slug.
@@ -27,6 +28,7 @@ import { OrganizationPeople } from './OrganizationPeople';
  */
 const TABS = [
   { segment: '', label: 'Visão geral' },
+  { segment: 'requests', label: 'Pedidos' },
   { segment: 'resources', label: 'Recursos' },
   { segment: 'people', label: 'Pessoas' },
 ];
@@ -98,6 +100,10 @@ export function OrganizationDetail() {
 
       <Routes>
         <Route index element={<OrganizationOverview organization={found} />} />
+        <Route path="requests" element={<OrganizationRequests organization={found} />} />
+        <Route path="requests/new" element={<RequestEditor organization={found} existing={null} />} />
+        <Route path="requests/:requestId" element={<RequestRoute organization={found} />} />
+        <Route path="requests/:requestId/preview" element={<RequestPreviewPage organization={found} />} />
         <Route path="resources" element={<OrganizationResources organization={found} />} />
         <Route path="people" element={<OrganizationPeople organization={found} />} />
       </Routes>
