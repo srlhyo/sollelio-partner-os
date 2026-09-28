@@ -1,7 +1,8 @@
 /**
- * Slice 2 C2 through the real UI: the operator (desktop) creates, edits, previews and
- * publishes a Request; the partner (mobile, her own session) reads it on Home and in
- * the detail, read-only. Real stack, real sessions, real RLS.
+ * Slice 2 through the real UI (Flow A): the operator (desktop) creates, edits,
+ * previews and publishes a Request (C2); the partner (mobile, her own session) finds
+ * it on Home and answers it; the operator reads the exact response and completes it;
+ * the partner sees it done (C3). Real stack, real sessions, real RLS.
  */
 import { devices, expect, test, type Browser, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
@@ -66,9 +67,13 @@ test('the operator creates a draft, edits it and opens the preview', async ({ pa
   await expect(frame.getByText('~3 min')).toBeVisible();
   await expect(frame.getByText('Foi fácil encontrar o que precisava?')).toBeVisible();
   await expect(frame.getByRole('link', { name: /Sollelio Events/ })).toBeVisible();
-  // Nothing internal in the partner column, and nothing to answer with.
+  // Nothing internal in the partner column. The partner's real controls are shown,
+  // but none of them can be used from the preview (03_UX_SPEC.md §16).
   await expect(frame.getByText('Respondeu e abriu o link canónico.')).toHaveCount(0);
-  await expect(frame.locator('input, textarea, select, button')).toHaveCount(0);
+  await expect(frame.getByRole('radio', { name: 'Sim' })).toBeDisabled();
+  await expect(frame.getByRole('radio', { name: 'Não' })).toBeDisabled();
+  await expect(frame.getByRole('button', { name: 'Enviar resposta' })).toBeDisabled();
+  await expect(frame.locator('input:enabled, textarea:enabled, select:enabled, button:enabled')).toHaveCount(0);
   await expect(page.getByText('Critério de conclusão definido (só Sollelio).')).toBeVisible();
 });
 
@@ -96,7 +101,7 @@ test('the operator publishes the previewed version', async ({ page }) => {
   await expect(page.getByRole('link', { name: TITLE_RE })).toBeVisible();
 });
 
-test('the partner finds it on Home and reads it, with no answer control', async ({ browser }) => {
+test('the partner finds it on Home and answers it', async ({ browser }) => {
   const partner = await asPartner(browser);
   const { page } = partner;
   await page.goto('/partner');
@@ -111,33 +116,50 @@ test('the partner finds it on Home and reads it, with no answer control', async 
   await card.click();
   await expect(page).toHaveURL(new RegExp(`/partner/requests/${requestId}$`));
   await expect(page.getByRole('heading', { name: `${TITLE} (revisto)` })).toBeVisible();
-  await expect(page.getByText('O que vamos perguntar')).toBeVisible();
-  await expect(page.getByText('Sim ou não')).toBeVisible();
-  await expect(page.locator('input, textarea, select')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Enviar|Responder|Submeter/i })).toHaveCount(0);
   await expect(page.getByText('Respondeu e abriu o link canónico.')).toHaveCount(0);
+
+  // Real controls. `Não` is a real answer, not a missing one.
+  await page.getByRole('radio', { name: 'Não' }).check();
+  await page.getByRole('button', { name: 'Enviar resposta' }).click();
+  await expect(page.getByText('Enviado. Já está connosco.')).toBeVisible();
+  await expect(page.getByText('Está com a Sollelio')).toBeVisible();
+  const mine = page.getByRole('region', { name: 'A sua resposta' });
+  await expect(mine.getByText('Foi fácil encontrar o que precisava?')).toBeVisible();
+  await expect(mine.getByText('Não', { exact: true })).toBeVisible();
+  await expect(page.locator('input, textarea')).toHaveCount(0);
+  expect(sql(`select count(*) from public.request_submissions where request_id = '${requestId}'`)).toBe('1');
+
+  // Home no longer counts it: read again from the server.
+  await page.goto('/partner');
+  await expect(page.getByRole('link', { name: TITLE_RE })).toHaveCount(0);
   await partner.close();
 });
 
-test('the partner detail states with Sollelio, done and cancelled', async ({ browser }) => {
-  // No C2 command reaches these states; a privileged local update stands in for the
-  // C3/C4 commands on this one Request.
+test('the operator reads the exact response and completes; the partner sees it done', async ({ browser, page }) => {
+  await page.goto(`${ORG}/requests/${requestId}`);
+  await expect(page.getByText('Espera pela Sollelio').first()).toBeVisible();
+  const history = page.getByRole('region', { name: 'Respostas e devoluções' });
+  await expect(history.getByText(/Resposta de Nádia/)).toBeVisible();
+  await expect(history.getByText('Foi fácil encontrar o que precisava?')).toBeVisible();
+  await expect(history.getByText('Não', { exact: true })).toBeVisible();
+  await expect(page.getByText('Respondeu ao pedido')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Concluir' }).click();
+  await page.getByRole('button', { name: 'Confirmar conclusão' }).click();
+  await expect(page.getByText('Pedido concluído.')).toBeVisible();
+  await expect(page.getByText('Concluído').first()).toBeVisible();
+  await expect(page.getByText('Concluiu o pedido')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Concluir' })).toHaveCount(0);
+
   const partner = await asPartner(browser);
-  const { page } = partner;
-  sql(`update public.requests set status = 'needs_sollelio', next_actor = 'sollelio' where id = '${requestId}'`);
-  await page.goto(`/partner/requests/${requestId}`);
-  await expect(page.getByText('Está com a Sollelio')).toBeVisible();
+  await partner.page.goto(`/partner/requests/${requestId}`);
+  await expect(partner.page.getByText(/^Concluído/)).toBeVisible();
 
-  sql(`update public.requests set status = 'completed', next_actor = 'none', completed_at = now() where id = '${requestId}'`);
-  await page.reload();
-  await expect(page.getByText(/^Concluído/)).toBeVisible();
-
+  // No C3 command reaches "cancelled" (cancellation is a later checkpoint); a
+  // privileged local update stands in for it, on this one Request only.
   sql(`update public.requests set status = 'cancelled', next_actor = 'none', cancelled_at = now() where id = '${requestId}'`);
-  await page.reload();
-  await expect(page.getByText(/A Sollelio cancelou este pedido/)).toBeVisible();
-
-  await page.goto('/partner');
-  await expect(page.getByRole('link', { name: TITLE_RE })).toHaveCount(0);
+  await partner.page.reload();
+  await expect(partner.page.getByText(/A Sollelio cancelou este pedido/)).toBeVisible();
   await partner.close();
 });
 

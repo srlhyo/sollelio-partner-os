@@ -138,7 +138,7 @@ Consistency rules (enforced by check constraints and by the domain commands):
 
 **Deadlines (C2).** `due_at` stays a `timestamptz`. Its operational time zone is **Europe/Lisbon** for V0: a deadline chosen as a day means 23:59:59 of that day in Lisbon, with the offset of that very day from the time-zone database (UTC+1 in summer, UTC+0 in winter; never a fixed offset). Every surface shows deadlines as Lisbon days, whatever the viewer's browser zone, so the same deadline reads as the same day in Portugal and in Brazil; the internal editor labels the field "hora de Lisboa". Opening and saving a draft without changing the day sends the stored instant unchanged. Relative wording ("até hoje", "até amanhã", "até sexta") compares Lisbon days.
 
-**Revision (C2).** `revision` is the version of the whole Request aggregate: the row, its `request_fields` and its `request_internal_details`. It is never written by a caller: a `BEFORE UPDATE` trigger on `requests` always sets it to the previous value plus one, and triggers on `request_fields` and `request_internal_details` touch the parent row on every insert, update and delete. Every relevant change therefore moves it, and no two versions of one Request share a number. `update_request_draft` requires the revision the caller read; `publish_request` requires the revision `preview_request` returned. Internal notes are not part of the aggregate and do not move it.
+**Revision (C2).** `revision` is the version of the whole Request aggregate: the row, its `request_fields` and its `request_internal_details`. It is never written by a caller: a `BEFORE UPDATE` trigger on `requests` always sets it to the previous value plus one, and triggers on `request_fields` and `request_internal_details` touch the parent row on every insert, update and delete. Every relevant change therefore moves it, and no two versions of one Request share a number. `update_request_draft` requires the revision the caller read; `publish_request` requires the revision `preview_request` returned; `return_request_to_partner` and `complete_request` require the revision the operator reviewed (C3). Every lifecycle transition, including a partner's submission, moves the revision; the partner never sees it — their stale-state guard is the round (`expected_return_id`, §13). Internal notes, submissions, answers and returns are not part of the aggregate row and do not move it by themselves.
 
 **Resource link (C2).** `resource_id` references `resources`; the URL itself is read from `resources` at render time and nowhere else. Enforced for every writer by trigger: the Resource belongs to the Request's organization, and when both the Request and the Resource carry a product they agree. Whether the Resource is active and partner-visible is a publication rule (§13): a draft may point at a link still being prepared. A Resource that later stops being active or visible simply stops being shown to the partner; the partner UI then says the link is no longer available, without exposing it.
 
@@ -196,13 +196,25 @@ Authors do not hand-build approval fields. There is exactly one approval mechani
 
 ### request_submissions
 
-- id uuid PK
+- id uuid PK — for `submit_request`, the `submission_id` the client generated once for that submission attempt (C3); it is the replay identity
 - request_id FK
 - submitted_by FK profile
 - source enum(partner_os, whatsapp_capture, internal_capture, integration)
+- return_id FK `request_returns` nullable — the round this submission answers; NULL for the initial round (C3)
+- response_text text nullable — the answer to a returned `text` round (C3)
+- response_decision enum(approve, needs_changes) nullable — the decision of a returned `approval` round (C3)
+- response_notes text nullable — optional notes of a returned `approval` round, only with `needs_changes` (C3)
+- payload_hash text nullable — md5 of the canonical submission payload, written by `submit_request` and compared on replay (C3)
 - created_at
 
 Submissions are append-only and ordered by `created_at`. A Request returned to the partner produces a new submission; earlier submissions are never modified.
+
+**Rounds (C3).** A Request has one *initial round* (the published Request itself) and one further round per `request_returns` row. Every round has at most one submission: `UNIQUE (request_id, return_id) NULLS NOT DISTINCT` (PostgreSQL 15+, the version of every environment). The *current round* of a Request in `needs_partner` is its return that has no submission yet, or the initial round when every return has one; there is never more than one unanswered return.
+
+- **Initial round** (`return_id` NULL): answers the original `request_fields` in `request_answers`; every `response_*` column is NULL.
+- **Returned round** (`return_id` set): answers only the return's own question, in the `response_*` columns of the submission row itself, and writes **no** `request_answers`. A `text` return stores `response_text` (decision and notes NULL); an `approval` return stores `response_decision` and optionally `response_notes`, and notes are allowed only with `needs_changes`. The original fields are never asked again and never re-answered.
+
+A check constraint states the shape of each round, and a trigger checks that the return belongs to the same Request and that the stored response matches the return's `response_type`. Updates to `request_submissions`, `request_answers` and `request_returns` are rejected by trigger for every role: history is appended, never rewritten.
 
 ### request_answers
 
@@ -211,6 +223,31 @@ Submissions are append-only and ordered by `created_at`. A Request returned to t
 - request_field_id FK
 - value jsonb NOT NULL
 - created_at
+
+Only initial-round submissions have answers (enforced by trigger). One answer per field per submission (`UNIQUE (submission_id, request_field_id)`). Stored values (C3, normalized by `submit_request`):
+
+- `long_text` — a JSON string, trimmed, 1–4000 characters;
+- `boolean` — `true` or `false`; `false` is an answer, never "missing";
+- `single_choice` — a JSON string equal to one of the field's `options`;
+- `approval` (the system field `approval`) — `"approve"` or `"needs_changes"`;
+- `approval_notes` (system `long_text`) — as `long_text`, and only when the decision is `needs_changes`.
+
+An optional field left unanswered (absent, `null`, or text empty after trimming) has no answer row.
+
+### request_returns (C3)
+
+What Sollelio asks when it returns a Request to the partner: one precise new question or action per return, never a rewrite of the published Request.
+
+- id uuid PK — the `return_id` the staff client generated once for that return attempt; it is the replay identity
+- request_id FK NOT NULL
+- response_type enum(text, approval) NOT NULL — what the partner answers: a written reply, or a new Aprovar / Precisa de alterações decision
+- message text NOT NULL — partner-facing, 1–2000 characters after trimming
+- created_by FK profile NOT NULL — the staff member who returned it
+- created_at
+
+Append-only: returns are never edited or deleted by a command, and an update trigger rejects every change. `response_type` is deliberately limited to these two values in V0; a return never carries arbitrary fields, choices, media or a conversation. There is no `return_reply` or other extra `request_fields` row: the original field definition stays exactly as published.
+
+Staff read the table under a staff-only policy. Partners read the partner-facing columns through the `partner_request_returns` projection (§12.3), never the table.
 
 ### request_internal_notes
 
@@ -436,6 +473,8 @@ V0 event types:
 - issue.followup_acknowledged
 - organization.archived
 
+Request lifecycle metadata stays minimal and never carries response text, which lives in the submission and return rows (C3): `request.submitted` `{ submission_id, return_id, revision }` (actor: the partner); `request.returned_to_partner` `{ return_id, response_type, revision }`; `request.completed` `{ revision }`.
+
 `resource.opened` is written by the narrow `record_resource_opened` command (§13). It exists because “are the canonical links actually being used?” is a pilot question we cannot answer any other way (`07_DO_LUXO_A_MESA_PILOT.md §14`).
 
 `request.viewed` and `update.viewed` are **not** V0 event types. No command writes them. Generic per-object view tracking is not reintroduced: it produces volume without answering a question anyone is asking.
@@ -500,6 +539,8 @@ Excluded: `status`, `next_actor`, `assignee_profile_id`, `created_by`, `revision
 
 **One projection (C2).** The partner-facing shape — its column list, the product join and the `status` → `partner_state` mapping — is defined once, in `app.partner_request_projection`. That view carries the sixteen columns plus `assignee_profile_id` as predicate support only; it lives in the `app` schema, which PostgREST does not expose, and neither anon nor authenticated may read it. `public.partner_requests` is that projection filtered by the predicate above, with an explicit column list, `security_barrier`, owner `postgres` and `security_invoker` off, exactly as in C1. The staff preview (`preview_request`, §13) reads the same projection for one Request id, so the preview and the partner can never disagree about the shape. There is no client-side mapping of Request rows into the partner shape.
 
+**`partner_request_returns`** (C3) — predicate: the return's Request is visible through `partner_requests` for the caller. Columns: `id, request_id, response_type, message, created_at`. Excluded: `created_by`. Same construction as `partner_requests`: `security_barrier`, owner `postgres`, `security_invoker` off, SELECT granted to `authenticated` only. `partner_requests` itself is unchanged by C3: it keeps exactly its sixteen columns.
+
 **`partner_issues`** — predicate: `reporter_profile_id` = calling profile AND active membership in `organization_id`. Columns:
 
 - id, organization_id, product_id, product_name
@@ -529,8 +570,9 @@ Excluded: `status`, `created_by`, `archived_at`, audience composition.
 | requests | **No access.** Read via `partner_requests` |
 | request_internal_details | **No access** |
 | request_fields | SELECT where the parent Request is visible through `partner_requests` |
-| request_submissions | SELECT own submissions on a Request visible through `partner_requests` |
-| request_answers | SELECT where the parent submission is accessible |
+| request_submissions | SELECT own submissions on a Request visible through `partner_requests`, including the returned-round response columns (C3). Writes only via `submit_request` |
+| request_answers | SELECT where the parent submission is accessible. Writes only via `submit_request` |
+| request_returns | **No access.** Read via `partner_request_returns` (C3) |
 | request_internal_notes | **No access** |
 | request_command_receipts | **No access** (C2; commands only) |
 | app.partner_request_projection | **No access** (C2; read through `partner_requests`, or by the staff preview command) |
@@ -563,14 +605,14 @@ Commands validate the caller's permission and the object's current state, write 
 
 ### Request commands
 
-C2 implements `create_request`, `update_request_draft`, `preview_request` and `publish_request` (contract below). The others remain as specified here for later checkpoints (`06_BUILD_PLAN.md`, Slice 2).
+C2 implements `create_request`, `update_request_draft`, `preview_request` and `publish_request`; C3 implements `submit_request`, `return_request_to_partner` and `complete_request` (contracts below). `reassign_request` and `cancel_request` remain as specified here for a later checkpoint (`06_BUILD_PLAN.md`, Slice 2).
 
 - `create_request` — for `type = approval`, generates the system approval fields (§4).
 - `update_request_draft` — replaces the editable content of a draft at the expected revision (C2).
 - `preview_request` — staff-only read of the partner-facing shape of one Request, draft or published (C2).
 - `publish_request` — draft => needs_partner.
-- `submit_request` — needs_partner => needs_sollelio. **Validates the whole submission atomically server-side**: every required field answered, each answer's shape matching its `request_fields.type`, and every `single_choice` value a member of that field's `options`. A submission that fails any check is rejected in full; no partial answers are written.
-- `return_request_to_partner` — needs_sollelio => needs_partner. Requires a new question or action.
+- `submit_request` — needs_partner => needs_sollelio. **Validates the whole submission atomically server-side**: every required field answered, each answer's shape matching its `request_fields.type`, and every `single_choice` value a member of that field's `options`. A submission that fails any check is rejected in full; no partial answers are written. In a returned round it validates the round's own response instead (C3).
+- `return_request_to_partner` — needs_sollelio => needs_partner. Requires a new question or action: one `request_returns` row with a message and a `text` or `approval` response type (C3).
 - `reassign_request` — changes `assignee_profile_id`. Target must hold an active membership in the Request's organization.
 - `complete_request` — => completed.
 - `cancel_request` — => cancelled.
@@ -615,6 +657,56 @@ There is no `start_request`.
 - Reads of one version: the editor's aggregate (row with internal details, then fields) is confirmed against the current revision and re-read if an edit landed in between; the preview and the internal row that supplies the recipient and checklist must carry the same revision before the page offers publication. The partner projection and internal data stay separate objects.
 
 **Errors** (`{ error: { code, message, details? } }`): 401 `unauthenticated`; 403 `no_profile`, `not_staff`; 404 `not_found`; 409 `stale_revision`, `invalid_state`, `idempotency_conflict`, `conflict`; 413 `payload_too_large`; 422 `validation_failed` (with `details.errors[{field, code, message}]`), `organization_not_active`, `assignee_not_active_member`, `product_not_linked`, `resource_not_available`, `publish_requirements` (with `details.errors`); 503 `busy`; 500 `internal_error`. SQL raises them as SQLSTATE `RQ001`–`RQ011`.
+
+#### C3 command contract — response loop
+
+The loop: published => the assigned partner submits => `needs_sollelio` => Sollelio completes, or returns one precise new question or action => `needs_partner` => the partner answers that round => `needs_sollelio` => complete or return again. Every step appends history; nothing already published, submitted or returned is rewritten.
+
+**Where they run.**
+
+- Partner: `POST /functions/v1/partner-request-commands/submit` — a separate Edge Function (`verify_jwt = true`) so the C2 staff function keeps its staff gate unchanged. It validates the bearer token with the Auth server (`auth.getUser`), resolves the caller's profile (403 `no_profile` when none) and calls `public.cmd_submit_request` with that profile id. Staff status is not required here and grants nothing: the SQL command authorizes the actor as the Request's assignee.
+- Staff: `POST /functions/v1/request-commands/{return|complete}` — the C2 function, same staff gate — calling `public.cmd_return_request_to_partner` and `public.cmd_complete_request`.
+
+All three SQL functions are `SECURITY INVOKER`, executable only by `service_role`, and authorize the **supplied** actor explicitly (`p_actor`). They never use `app.current_profile_id()`, `app.has_active_membership()` or `partner_requests`: those resolve the caller through `auth.uid()`, which is empty in a service-role call. The actor always comes from the verified session, never from the body; neither is an organization or assignee accepted from the browser.
+
+**Bodies.**
+
+- submit, initial round: `{ request_id, submission_id, expected_return_id: null, answers: [{ field_id, value }] }`.
+- submit, returned `text` round: `{ request_id, submission_id, expected_return_id, response: { text } }`.
+- submit, returned `approval` round: `{ request_id, submission_id, expected_return_id, response: { decision, notes } }` — `notes` optional or null.
+- return: `{ request_id, expected_revision, return_id, response_type, message }` — `response_type` is `text` or `approval`.
+- complete: `{ request_id, expected_revision }`.
+
+`submission_id` and `return_id` are UUIDs generated by the client once per attempt. `expected_return_id` is always present: `null` for the initial round, the current return's id otherwise. `answers` belongs only to the initial round and `response` only to a returned one; sending the other is `validation_failed`. Unknown keys are rejected at every level.
+
+**`submit_request`** — authorization, under the Request lock: the Request exists, is published, `assignee_profile_id = p_actor`, and `p_actor` holds an **active** membership in the Request's organization (locked `FOR SHARE`). Otherwise `not_found` — for another partner, another organization, an inactive membership, staff, a draft or a missing Request alike, because the partner may not learn that a Request they cannot see exists. Then the state: the Request must be `needs_partner` (else `invalid_state`), and `expected_return_id` must be the current round (else `stale_round`, with `details.current_return_id`). Then validation of the whole payload, and only then the writes.
+
+Initial round — `answers` validation (all errors reported together in `details.errors`, field path `answers.<field_id>` or `answers[<index>]`): each element is `{ field_id, value }`; the field belongs to this Request (else `unknown_field`); no field twice (`duplicate`); the value matches the field type (`invalid_type`) — `long_text` a string ≤ 4000 characters after trimming (`too_long`), `boolean` a JSON boolean, `single_choice` one of the options (`invalid_option`), `approval` `approve` or `needs_changes`; every required field answered (`required`; `false` answers a boolean); `approval_notes` with `approve` is `notes_not_allowed`. A Request without fields (a `task`) is submitted with an empty `answers` list: that submission is the partner's confirmation that the requested action was done, and it has no `request_answers` rows.
+
+Returned round — `response` validation (paths `response.text`, `response.decision`, `response.notes`): a `text` round needs `{ text }`, a string non-empty after trimming, ≤ 4000; an `approval` round needs `decision` ∈ `approve`, `needs_changes` and accepts `notes` (string ≤ 4000, empty after trimming stored as NULL) only with `needs_changes`.
+
+Effects, in one transaction: one `request_submissions` row (with the round's response, or with its `request_answers`), `status = needs_sollelio`, `next_actor = sollelio`, and one `request.submitted` event. Nothing is written when anything fails.
+
+**`return_request_to_partner`** — staff only. The Request must be `needs_sollelio` (else `invalid_state`) at exactly `expected_revision` (else `stale_revision`); the organization must be active and the assignee's membership active (`organization_not_active`, `assignee_not_active_member`), because a Request never waits on nobody. `message` is required, 1–2000 characters after trimming; `response_type` is `text` or `approval`. Effects, in one transaction: one `request_returns` row, `status = needs_partner`, `next_actor = partner`, one `request.returned_to_partner` event. The published content, the original fields, earlier submissions and earlier returns are untouched.
+
+**`complete_request`** — staff only. The Request must be `needs_sollelio` (else `invalid_state`) at exactly `expected_revision` (else `stale_revision`) — the revision of what the operator reviewed. Effects: `status = completed`, `next_actor = none`, `completed_at = now()`, one `request.completed` event.
+
+**Replay and conflicts.** No receipt table is used in C3: the identity of the operation is the primary key of the row it creates.
+
+- submit: `submission_id` is the submission's primary key. When a submission with that id exists, the same actor, the same Request and the same canonical payload (`payload_hash`: md5 of `expected_return_id` with the answers ordered by `field_id`, or with the response, strings trimmed) replay the original outcome with `replayed: true` and write nothing — also after the Request has left `needs_partner`, because the identity check comes before the state check. Anything else under that id is `idempotency_conflict`. A different `submission_id` for a round that already has a submission gets `invalid_state` (the Request no longer waits on the partner) or `stale_round` (a later return is current); the unique index on `(request_id, return_id)` is the backstop.
+- return: `return_id` is the return's primary key. The same actor, Request, response type and message replay the original outcome (`replayed: true`, the return as created, no second row or event); anything else under that id is `idempotency_conflict`.
+- complete: no key. A retried completion after success is `invalid_state`; the client settles an ambiguous completion by reading the Request (`completed` means it landed).
+
+**Locks.** Every C3 command takes the Request row `FOR UPDATE` first; then return takes the organization and the assignee membership `FOR SHARE`, and submit the actor's membership `FOR SHARE` — the same order as C2 (receipt → Request → organization → membership → product → Resource) minus the steps a command does not use. The identity lookup (existing submission or return) happens after the Request lock, so concurrent duplicates serialize on the Request and the later one replays. Two different submissions for one round: the second waits for the first, then finds the Request in `needs_sollelio`. No global locks.
+
+**Errors** (C3 additions to the C2 table): 409 `stale_round` (SQLSTATE `RQ012`) — the round the partner answered is no longer current. Everything else reuses the C2 codes: 404 `not_found`, 409 `invalid_state`, `stale_revision`, `idempotency_conflict`, `conflict` (a database backstop caught a race), 422 `validation_failed`, `organization_not_active`, `assignee_not_active_member`, 413 `payload_too_large` (64 KB body), 401 `unauthenticated`, 403 `no_profile`, `not_staff`.
+
+**Client behaviour (C3).**
+
+- Partner: while a submission is in flight the form is disabled and a second submission cannot start. Answers live only in component memory — never `localStorage`, `sessionStorage`, IndexedDB or any other browser store. An ambiguous outcome (as in C2) keeps the exact attempt and settles it by repeating it: same `submission_id`, same round, same payload. `stale_round` and `invalid_state` reload the authoritative Request; `not_found` shows the not-found state. Any 401 says the session ended, does not redirect, and states that leaving to sign in loses the unsent answers. After success the confirmation re-reads the Request and "Precisa de si" from the server; nothing is removed optimistically.
+- Staff: return keeps its `return_id` for the attempt and repeats it on an ambiguous outcome; complete settles an ambiguous outcome by reading the Request. A `stale_revision` reloads before anything else is offered.
+
+**Reads.** Partners: `partner_requests` (unchanged, sixteen columns), `request_fields`, their own `request_submissions` and `request_answers`, and `partner_request_returns`. Staff: `request_submissions`, `request_answers` and `request_returns` under the staff policies, rendered as one chronological history.
 
 ### Update commands
 
@@ -780,6 +872,7 @@ Each wave corresponds exactly to one slice in `06_BUILD_PLAN.md`. Do not create 
 - activity_events
 - `partner_requests` projection
 - C2 (`20260925160000_slice2_c2_request_authoring`): `requests.revision`, `requests.resource_id`, `app.partner_request_projection` (and `partner_requests` redefined on it), `request_command_receipts`, the four C2 command functions
+- C3 (`20260928120000_slice2_c3_request_response_loop`): `request_returns` and the `partner_request_returns` projection; `request_submissions.return_id`, the returned-round response columns and `payload_hash`; one submission per round; append-only triggers; `cmd_submit_request`, `cmd_return_request_to_partner`, `cmd_complete_request`
 - `record_resource_opened` — canonical-resource instrumentation begins here, since it needs `activity_events`. Resources themselves ship in Slice 1; their open-tracking starts one slice later.
 
 ### Wave 3 — Slice 3 (Updates)

@@ -68,3 +68,39 @@ describe('command client — definitive vs ambiguous outcomes', () => {
     expect((await failure()).ambiguous).toBe(true);
   });
 });
+
+describe('command client — C3 routes and bodies', () => {
+  it('sends a submission to the partner function, with the round and the attempt id, never an actor', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: { replayed: false } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { submitRequest } = await import('./commands');
+    await submitRequest('r-1', 's-1', null, { answers: [{ field_id: 'f-1', value: false }] });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/\/functions\/v1\/partner-request-commands\/submit$/);
+    expect(JSON.parse(String(init.body))).toEqual({
+      request_id: 'r-1', submission_id: 's-1', expected_return_id: null, answers: [{ field_id: 'f-1', value: false }],
+    });
+  });
+
+  it('sends return and complete to the staff function with the reviewed revision', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: {} }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { returnRequestToPartner, completeRequest } = await import('./commands');
+    await returnRequestToPartner('r-1', 7, 'ret-1', 'text', 'Falta só isto.');
+    await completeRequest('r-1', 8);
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0]?.[0]).toMatch(/\/functions\/v1\/request-commands\/return$/);
+    expect(JSON.parse(String(calls[0]?.[1].body))).toEqual({
+      request_id: 'r-1', expected_revision: 7, return_id: 'ret-1', response_type: 'text', message: 'Falta só isto.',
+    });
+    expect(calls[1]?.[0]).toMatch(/\/functions\/v1\/request-commands\/complete$/);
+    expect(JSON.parse(String(calls[1]?.[1].body))).toEqual({ request_id: 'r-1', expected_revision: 8 });
+  });
+
+  it('carries stale_round as a definitive answer, not an uncertain one', async () => {
+    respond(409, JSON.stringify({ error: { code: 'stale_round', message: 'stale_round', details: { current_return_id: 'x' } } }));
+    const error = await failure();
+    expect(error.code).toBe('stale_round');
+    expect(error.ambiguous).toBe(false);
+  });
+});

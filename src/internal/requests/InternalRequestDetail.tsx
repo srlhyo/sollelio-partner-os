@@ -1,18 +1,25 @@
 /**
- * A published Request, internally (03_UX_SPEC.md §15). Read-only in C2: lifecycle
- * actions (return, reassign, complete, cancel) and note writing arrive later.
+ * A published Request, internally (03_UX_SPEC.md §15). C3 adds the response history
+ * and, while the Request waits on Sollelio, the two next steps: complete, or return
+ * to the partner. Reassign, cancel and note writing arrive in a later checkpoint.
  *
  * Partner-facing and internal-only content are visibly separate zones; the internal
  * zone comes from records no partner projection reads.
  */
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAsync } from '../../platform/useAsync';
 import { Icon } from '../../platform/ui/Icon';
 import { ErrorState, LoadingBlock } from '../../platform/ui/States';
 import type { Organization } from '../../modules/organizations/types';
 import { fetchOrganizationMembers } from '../../modules/people/queries';
 import { fetchAllResources } from '../../modules/resources/queries';
-import { fetchInternalNotes, fetchRequestActivity, fetchStaffProfiles } from '../../modules/requests/queries';
+import {
+  fetchInternalNotes,
+  fetchRequestActivity,
+  fetchRequestReturns,
+  fetchStaffProfiles,
+  fetchSubmissions,
+} from '../../modules/requests/queries';
 import { formatDateTime, formatDueLong, formatEffort } from '../../modules/requests/format';
 import {
   ACTIVITY_LABELS,
@@ -24,17 +31,22 @@ import {
   type RequestFieldRecord,
 } from '../../modules/requests/types';
 import { resourceHost } from '../../modules/resources/types';
+import { LifecycleActions } from './LifecycleActions';
+import { ResponseHistory } from './ResponseHistory';
 
 export function InternalRequestDetail({
   organization,
   request,
   fields,
+  onReload,
 }: {
   organization: Organization;
   request: InternalRequest;
   fields: RequestFieldRecord[];
+  onReload: () => void;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const flash = (location.state as { flash?: string } | null)?.flash;
   const base = `/app/organizations/${organization.slug}/requests`;
   const extra = useAsync(
@@ -45,18 +57,25 @@ export function InternalRequestDetail({
         fetchAllResources(organization.id),
         fetchInternalNotes(request.id),
         fetchRequestActivity(request.id),
+        fetchSubmissions(request.id),
+        fetchRequestReturns(request.id),
       ]),
-    [organization.id, request.id],
+    [organization.id, request.id, request.revision],
   );
 
   if (extra.status === 'loading') return <LoadingBlock label="A carregar o pedido" />;
   if (extra.status === 'error') return <ErrorState onRetry={extra.reload}>Não foi possível carregar este pedido.</ErrorState>;
 
-  const [members, staff, resources, notes, activity] = extra.data;
+  const [members, staff, resources, notes, activity, submissions, returns] = extra.data;
   const nameOf = (id: string | null) =>
     (id && (members.find((m) => m.profile.id === id)?.profile.displayName ?? staff.find((s) => s.id === id)?.displayName)) || '—';
   const resource = request.resourceId ? resources.find((r) => r.id === request.resourceId) : undefined;
   const ordered = [...fields].sort((a, b) => a.sort_order - b.sort_order);
+  // After an action, show its outcome and read the Request again from the server.
+  const afterAction = (message: string) => {
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: message ? { flash: message } : null });
+    onReload();
+  };
 
   return (
     <>
@@ -125,9 +144,22 @@ export function InternalRequestDetail({
               </dl>
             </div>
           </section>
+
+          <section className="panel" aria-labelledby="responses">
+            <div className="panel__head">
+              <h2 id="responses">Respostas e devoluções</h2>
+            </div>
+            <div className="panel__body">
+              <ResponseHistory submissions={submissions} returns={returns} fields={fields} nameOf={nameOf} />
+            </div>
+          </section>
         </div>
 
         <div className="zone zone--internal">
+          {request.status === 'needs_sollelio' ? (
+            <LifecycleActions request={request} assigneeName={nameOf(request.assigneeProfileId)} onDone={afterAction} />
+          ) : null}
+
           <span className="zone__tag zone__tag--internal">
             <Icon name="lock" size={16} />
             Só Sollelio

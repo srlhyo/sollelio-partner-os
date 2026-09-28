@@ -91,6 +91,7 @@ Lifecycle transitions should be explicit operations such as:
 
 - publish request;
 - submit request;
+- return request to partner;
 - reassign request;
 - record resource opened;
 - complete request;
@@ -111,6 +112,8 @@ Commands validate permissions, current state and payload shape, and write relate
 The canonical command list is `05_DATA_MODEL_AND_API.md §13`.
 
 Pattern used from Slice 2 C2: the Edge Function verifies the session with the Auth server, resolves the actor, validates the body, and calls one transactional SQL function per command. Those functions are `SECURITY INVOKER`, executable only by `service_role`, and re-check the actor. This keeps privileged entry in Edge Functions (§2) while the multi-row atomicity lives in one database transaction.
+
+Partner commands (from Slice 2 C3) have their own Edge Function, `partner-request-commands`, instead of widening the staff one: it resolves any profile from the verified session and grants nothing by itself, and the staff function keeps its staff gate unchanged. Because the SQL runs as `service_role`, `auth.uid()` is empty there, so a command authorizes the **actor it is given** (`p_actor`) with explicit predicates — for `submit_request`, assignee equals actor and the actor's membership is active — and never through `auth.uid()`-based helpers or the partner projections. The actor always comes from the verified session, never from the request body.
 
 ## 9. Events V1 integration
 
@@ -226,6 +229,10 @@ Integration endpoints that may be retried must not create duplicate operational 
 
 - **Issue creation** carries an `idempotency_key` stored directly on the Issue, with a scoped unique constraint. A repeat returns the original Issue. V0 adds no general idempotency table.
 - **Acknowledgements and seen-marks** are already idempotent through `UNIQUE(update_id, profile_id)` on `update_receipts`; they need no additional mechanism.
+- **Request creation and publication** (Slice 2 C2) replay through `request_command_receipts`, a two-command table, not a general log.
+- **Request submission and return** (Slice 2 C3) need no receipt: the client generates the new row's primary key (`submission_id`, `return_id`) once per attempt, and a retry with the same id and the same payload replays the original outcome. One submission per round is also a unique constraint. Completion is settled by reading the Request.
+
+User input that has not been sent lives only in memory. The partner's unsent answers are never written to `localStorage`, `sessionStorage`, IndexedDB or any other browser store; if the session ends, the page says so and that leaving to sign in loses them. This is deliberate for V0: responses are short, and stored drafts would outlive the session on shared devices.
 
 ## 18. Deletion/history
 

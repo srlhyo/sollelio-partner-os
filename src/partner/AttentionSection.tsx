@@ -7,12 +7,22 @@
  */
 import { useAsync } from '../platform/useAsync';
 import { EmptyState, ErrorState, LoadingBlock } from '../platform/ui/States';
-import { fetchPartnerAttention } from '../modules/requests/queries';
+import { fetchPartnerAttention, fetchReturnedRequestIds } from '../modules/requests/queries';
 import { comparePartnerAttention } from '../modules/requests/order';
 import { RequestCard } from './RequestCard';
 
+/** Requests awaiting the partner, and which of them came back after a return. */
+async function loadAttention(organizationId: string) {
+  const list = await fetchPartnerAttention(organizationId);
+  const returned = await fetchReturnedRequestIds(list.map((request) => request.id));
+  return { list, returned };
+}
+
 export function AttentionSection({ organizationId }: { organizationId: string }) {
-  const requests = useAsync(() => fetchPartnerAttention(organizationId), [organizationId]);
+  const attention = useAsync(() => loadAttention(organizationId), [organizationId]);
+  const requests =
+    attention.status === 'ready' ? { status: 'ready' as const, data: attention.data.list } : attention;
+  const returned = attention.status === 'ready' ? attention.data.returned : new Set<string>();
 
   return (
     <section className="attn" aria-labelledby="attention-title">
@@ -31,7 +41,7 @@ export function AttentionSection({ organizationId }: { organizationId: string })
       {requests.status === 'loading' ? <LoadingBlock label="A carregar os seus pedidos" /> : null}
 
       {requests.status === 'error' ? (
-        <ErrorState onRetry={requests.reload}>Não conseguimos carregar os seus pedidos agora.</ErrorState>
+        <ErrorState onRetry={attention.reload}>Não conseguimos carregar os seus pedidos agora.</ErrorState>
       ) : null}
 
       {requests.status === 'ready' && requests.data.length === 0 ? (
@@ -44,7 +54,7 @@ export function AttentionSection({ organizationId }: { organizationId: string })
         <ul className="rq-list">
           {[...requests.data].sort(comparePartnerAttention).map((request) => (
             <li key={request.id}>
-              <RequestCard request={request} />
+              <RequestCard request={request} returned={returned.has(request.id)} />
             </li>
           ))}
         </ul>

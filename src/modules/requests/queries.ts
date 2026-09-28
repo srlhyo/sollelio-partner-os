@@ -10,9 +10,12 @@ import type {
   ActivityEntry,
   InternalNote,
   InternalRequest,
+  InternalReturnRecord,
   PartnerRequestRecord,
+  PartnerReturnRecord,
   Priority,
   RequestFieldRecord,
+  SubmissionRecord,
 } from './types';
 
 // ---- Partner ---------------------------------------------------------------
@@ -55,6 +58,59 @@ export async function fetchRequestFields(requestId: string): Promise<RequestFiel
 
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+/**
+ * What Sollelio asked when it returned this Request, oldest first
+ * (`partner_request_returns`: only for a Request this partner may see).
+ */
+export async function fetchPartnerReturns(requestId: string): Promise<PartnerReturnRecord[]> {
+  const { data, error } = await supabase
+    .from('partner_request_returns')
+    .select('id, request_id, response_type, message, created_at')
+    .eq('request_id', requestId)
+    .order('created_at')
+    .returns<PartnerReturnRecord[]>();
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Which of these Requests were returned to the partner at least once. */
+export async function fetchReturnedRequestIds(requestIds: string[]): Promise<Set<string>> {
+  if (requestIds.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from('partner_request_returns')
+    .select('request_id')
+    .in('request_id', requestIds)
+    .returns<{ request_id: string }[]>();
+
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((row) => row.request_id));
+}
+
+const SUBMISSION_COLUMNS =
+  'id, request_id, submitted_by, return_id, response_text, response_decision, response_notes, created_at, ' +
+  'request_answers(request_field_id, value)';
+
+interface SubmissionRow extends Omit<SubmissionRecord, 'answers'> {
+  request_answers: SubmissionRecord['answers'] | null;
+}
+
+/**
+ * Submissions of one Request, oldest first, with their answers. RLS decides whose:
+ * a partner gets only their own, staff get all of them.
+ */
+export async function fetchSubmissions(requestId: string): Promise<SubmissionRecord[]> {
+  const { data, error } = await supabase
+    .from('request_submissions')
+    .select(SUBMISSION_COLUMNS)
+    .eq('request_id', requestId)
+    .order('created_at')
+    .returns<SubmissionRow[]>();
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(({ request_answers, ...row }) => ({ ...row, answers: request_answers ?? [] }));
 }
 
 // ---- Staff -----------------------------------------------------------------
@@ -192,6 +248,19 @@ export async function fetchRequestActivity(requestId: string): Promise<ActivityE
     actorProfileId: row.actor_profile_id,
     createdAt: row.created_at,
   }));
+}
+
+/** Returns of one Request with who returned it, oldest first. Staff only (RLS). */
+export async function fetchRequestReturns(requestId: string): Promise<InternalReturnRecord[]> {
+  const { data, error } = await supabase
+    .from('request_returns')
+    .select('id, request_id, response_type, message, created_by, created_at')
+    .eq('request_id', requestId)
+    .order('created_at')
+    .returns<InternalReturnRecord[]>();
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }
 
 /** Sollelio staff, for the internal-owner choice. Staff may read every profile. */

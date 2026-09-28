@@ -5,9 +5,13 @@
  * and the staff "Pré-visualizar como parceira" both render this, from the same
  * server-side projection (`partner_requests` / `cmd_preview_request`).
  *
- * C2 is read-only: questions are listed so the partner knows what will be asked,
- * with no inputs and no submit control. Responding arrives with C3.
+ * The response area is the caller's: the partner detail passes the live form (or
+ * the read-only response), and the preview asks for `preview`, which renders the
+ * same controls the partner will receive, none of them usable (03 §16). When the
+ * Request came back to the partner, `followUp` ("Falta só isto") comes first and the
+ * published content below reads as the original Request.
  */
+import type { ReactNode } from 'react';
 import { Icon } from '../platform/ui/Icon';
 import { formatDueLong, formatEffort, longDate } from '../modules/requests/format';
 import {
@@ -16,26 +20,8 @@ import {
   type RequestFieldRecord,
 } from '../modules/requests/types';
 import type { Resource } from '../modules/resources/types';
+import { InitialResponseFields } from './InitialResponseFields';
 import { ResourceList } from './ResourceList';
-
-function describeField(field: RequestFieldRecord): string {
-  if (field.system_generated && field.key === 'approval') return 'Aprovar ou Precisa de alterações';
-  if (field.system_generated && field.key === 'approval_notes') {
-    return 'Resposta escrita, só se escolher “Precisa de alterações”';
-  }
-  switch (field.type) {
-    case 'long_text':
-      return 'Resposta escrita';
-    case 'boolean':
-      return 'Sim ou não';
-    case 'single_choice':
-      return field.options && field.options.length > 0
-        ? `Escolha uma opção: ${field.options.join(' · ')}`
-        : 'Escolha uma opção';
-    default:
-      return '';
-  }
-}
 
 function StateBanner({ request }: { request: PartnerRequestRecord }) {
   switch (request.partner_state) {
@@ -79,21 +65,51 @@ function StateBanner({ request }: { request: PartnerRequestRecord }) {
   }
 }
 
+/** The partner's controls for the published Request, shown in the staff preview: visible, not usable. */
+function PreviewControls({ request, fields }: { request: PartnerRequestRecord; fields: RequestFieldRecord[] }) {
+  return (
+    <div className="respond respond--preview" aria-label="Como a parceira responde">
+      <span className="dt__label">A sua resposta</span>
+      <fieldset className="form-lock" disabled>
+        {fields.length > 0 ? (
+          <InitialResponseFields fields={fields} draft={{}} onChange={() => undefined} idPrefix={`preview-${request.id}`} disabled />
+        ) : (
+          <p className="respond__note">Confirme quando tiver feito o que pedimos.</p>
+        )}
+        <div className="respond__actions">
+          <button type="button" className="btn btn--primary btn--block" disabled>
+            {request.type === 'approval' ? 'Enviar decisão' : 'Enviar resposta'}
+          </button>
+          <p className="respond__note">Pré-visualização: nada é enviado daqui.</p>
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
 export function PartnerRequestView({
   request,
   fields,
   resource,
   resourceUnavailable,
   headingLevel = 1,
+  followUp,
+  preview = false,
+  children,
 }: {
   request: PartnerRequestRecord;
   fields: RequestFieldRecord[];
   resource: Resource | null;
   resourceUnavailable: boolean;
   headingLevel?: 1 | 2;
+  /** The current return's question, shown first ("Falta só isto"). */
+  followUp?: ReactNode;
+  /** Render the response controls non-interactively (staff preview). */
+  preview?: boolean;
+  /** The response area: the live form, or the read-only response. */
+  children?: ReactNode;
 }) {
   const Title = headingLevel === 1 ? 'h1' : 'h2';
-  const ordered = [...fields].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <article className="dt">
@@ -120,6 +136,9 @@ export function PartnerRequestView({
 
       <StateBanner request={request} />
 
+      {followUp}
+      {followUp ? <span className="dt__label">O pedido original</span> : null}
+
       {request.context ? (
         <section className="dt__block" aria-label="Porque pedimos">
           <span className="dt__label">Porque pedimos</span>
@@ -140,23 +159,7 @@ export function PartnerRequestView({
         </div>
       ) : null}
 
-      {ordered.length > 0 ? (
-        <section className="dt__block" aria-labelledby={`questions-${request.id}`}>
-          <span className="dt__label" id={`questions-${request.id}`}>
-            O que vamos perguntar
-          </span>
-          <ol className="qs">
-            {ordered.map((field) => (
-              <li key={field.id} className="qs__item">
-                <span className="qs__label">{field.label}</span>
-                <span className="qs__kind">{describeField(field)}</span>
-                {field.help_text ? <p className="qs__help">{field.help_text}</p> : null}
-                <span className="qs__req">{field.required ? 'Obrigatória' : 'Opcional'}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      ) : null}
+      {preview ? <PreviewControls request={request} fields={fields} /> : children}
     </article>
   );
 }

@@ -88,6 +88,10 @@ vi.mock('./modules/requests/queries', () => ({
   fetchInternalNotes: () => Promise.resolve([]),
   fetchRequestActivity: () => Promise.resolve([]),
   fetchStaffProfiles: () => Promise.resolve([]),
+  fetchReturnedRequestIds: () => Promise.resolve(new Set()),
+  fetchPartnerReturns: () => Promise.resolve([]),
+  fetchSubmissions: () => Promise.resolve([]),
+  fetchRequestReturns: () => Promise.resolve([]),
 }));
 
 vi.mock('./modules/products/queries', () => ({

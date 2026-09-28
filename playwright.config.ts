@@ -100,13 +100,28 @@ export default defineConfig({
       use: { storageState: { cookies: [], origins: [] } },
     },
     {
+      // Slice 2 C3 response loop at the API boundary: authorization, replay and real
+      // concurrency against both command functions. Own synthetic people; no page.
+      name: 'request-submission',
+      testMatch: /request-submission\.spec\.ts/,
+      use: { storageState: { cookies: [], origins: [] } },
+    },
+    {
+      // Slice 2 C3 through the UI: return rounds (text and approval) and a lost
+      // submission response. Staff session here; the partner opens her own context.
+      name: 'requests-loop',
+      testMatch: /requests-loop\.spec\.ts/,
+      dependencies: ['setup'],
+      use: { ...devices['Desktop Chrome'], storageState: '.auth/staff.json' },
+    },
+    {
       // Signs in for itself and revokes that session server-side at the end, which
       // invalidates `.auth/staff.json`. Only the `internal` project uses that file,
       // so depending on it is enough to keep the suite deterministic — no reliance
       // on an access token outliving revocation.
       name: 'staff-logout',
       testMatch: /[\\/]staff-logout\.spec\.ts$/,
-      dependencies: ['internal', 'requests', 'requests-recovery'],
+      dependencies: ['internal', 'requests', 'requests-recovery', 'requests-loop'],
       use: { ...devices['Desktop Chrome'], storageState: { cookies: [], origins: [] } },
     },
     {
@@ -117,7 +132,7 @@ export default defineConfig({
       // rather than depend on that.
       name: 'partner-logout',
       testMatch: /[\\/]logout\.spec\.ts$/,
-      dependencies: ['partner', 'internal', 'partner-boundary', 'post-auth-routing', 'requests', 'requests-recovery'],
+      dependencies: ['partner', 'internal', 'partner-boundary', 'post-auth-routing', 'requests', 'requests-recovery', 'requests-loop'],
       use: { ...devices['Pixel 7'], storageState: { cookies: [], origins: [] } },
     },
   ],

@@ -1,6 +1,7 @@
 /**
  * The partner-facing Request presentation, shared by the partner detail and the
- * staff preview. C2 is read-only: no answer inputs, no submit control.
+ * staff preview. In C3 the preview shows the partner's real response controls, but
+ * none of them can be used and nothing can be sent (03_UX_SPEC.md §16).
  */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -21,7 +22,7 @@ const field = (patch: Partial<RequestFieldRecord>): RequestFieldRecord => ({
 });
 
 describe('PartnerRequestView', () => {
-  it('shows what, why, how long, and the questions — read-only', () => {
+  it('preview: shows what, why, how long, and the partner\'s controls — none of them usable', () => {
     const { container } = render(
       <PartnerRequestView
         request={base}
@@ -31,15 +32,30 @@ describe('PartnerRequestView', () => {
         ]}
         resource={null}
         resourceUnavailable={false}
+        preview
       />,
     );
     expect(screen.getByRole('heading', { name: base.title })).toBeDefined();
     expect(screen.getByText('~3 min')).toBeDefined();
     expect(screen.getByText('Porque pedimos')).toBeDefined();
-    expect(screen.getByText('Sim ou não')).toBeDefined();
-    expect(screen.getByText('Escolha uma opção: A · B')).toBeDefined();
-    expect(screen.getByText('Opcional')).toBeDefined();
-    // No way to answer, and nothing pretending to be one.
+    // The same controls the partner receives…
+    expect(screen.getByRole('group', { name: 'Foi óbvio?' })).toBeDefined();
+    expect(screen.getByRole('radio', { name: 'Sim' })).toBeDefined();
+    expect(screen.getByRole('radio', { name: 'Não' })).toBeDefined();
+    expect(screen.getByRole('radio', { name: 'A' })).toBeDefined();
+    expect(screen.getByText('(opcional)')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Enviar resposta' })).toBeDefined();
+    // …and not one of them can be used.
+    const controls = container.querySelectorAll('input, textarea, select, button');
+    expect(controls.length).toBeGreaterThan(0);
+    expect([...controls].every((el) => (el as HTMLInputElement).matches(':disabled'))).toBe(true);
+    expect(container.querySelector('form')).toBeNull();
+  });
+
+  it('without the preview flag and without a response area, renders no controls', () => {
+    const { container } = render(
+      <PartnerRequestView request={base} fields={[field({ key: 'q1', type: 'boolean' })]} resource={null} resourceUnavailable={false} />,
+    );
     expect(container.querySelectorAll('input, textarea, select, button').length).toBe(0);
   });
 
@@ -49,7 +65,7 @@ describe('PartnerRequestView', () => {
     expect(screen.queryByText(/até|prazo/i)).toBeNull();
   });
 
-  it('describes the system approval decision and optional notes', () => {
+  it('preview: an approval Request shows the two decisions; notes only appear after “Precisa de alterações”', () => {
     render(
       <PartnerRequestView
         request={{ ...base, type: 'approval' }}
@@ -59,10 +75,13 @@ describe('PartnerRequestView', () => {
         ]}
         resource={null}
         resourceUnavailable={false}
+        preview
       />,
     );
-    expect(screen.getByText('Aprovar ou Precisa de alterações')).toBeDefined();
-    expect(screen.getByText(/só se escolher “Precisa de alterações”/)).toBeDefined();
+    expect(screen.getByRole('radio', { name: 'Aprovar' })).toBeDefined();
+    expect(screen.getByRole('radio', { name: 'Precisa de alterações' })).toBeDefined();
+    expect(screen.queryByLabelText(/O que deve mudar/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Enviar decisão' })).toBeDefined();
   });
 
   it('states the terminal partner states plainly', () => {
