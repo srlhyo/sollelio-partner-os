@@ -10,6 +10,7 @@ const request = (revision: number, title: string): InternalRequest => ({
   id: 'r1', organizationId: 'o1', productId: null, resourceId: null, type: 'question', status: 'draft', nextActor: 'none',
   title, context: null, requestedAction: 'x', estimatedEffortMinutes: 3, assigneeProfileId: 'p1', dueAt: null,
   createdBy: 's', createdAt: '2026-09-25T10:00:00Z', publishedAt: null, updatedAt: '2026-09-25T10:00:00Z', revision,
+  cancelledAt: null, cancellationReason: null,
   internal: null,
 });
 const field = (label: string): RequestFieldRecord => ({

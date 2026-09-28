@@ -12,7 +12,7 @@
  * A change made by another session is never overwritten without an explicit choice.
  */
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAsync } from '../../platform/useAsync';
 import { Icon } from '../../platform/ui/Icon';
 import { ErrorState, LoadingBlock } from '../../platform/ui/States';
@@ -55,6 +55,7 @@ import {
   type QuestionDraft,
 } from './draftForm';
 import { SessionExpiredNotice } from './SessionExpiredNotice';
+import { CancelRequest } from './CancelRequest';
 import { useCurrentProfile } from '../useCurrentProfile';
 
 /**
@@ -135,6 +136,7 @@ export function RequestEditor({
   onReload?: () => void;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const base = `/app/organizations/${organization.slug}/requests`;
   const formId = useId();
   // Generated once for this new draft; every repetition of its creation reuses it.
@@ -301,7 +303,27 @@ export function RequestEditor({
   const dueIsPast = form.due ? isPast(fromDateInput(form.due) ?? '') : false;
   const questionCount = form.questions.length;
 
+  // C4: a saved draft can be cancelled. The panel sits beside the editor's form (never
+  // inside it), uses the revision the editor last saved, and waits while a save runs or
+  // an uncertain save is unsettled. Afterwards the route reads the Request again and
+  // shows it cancelled: nothing is editable or publishable any more.
+  const cancelPanel =
+    existing && requestId ? (
+      <CancelRequest
+        requestId={requestId}
+        status="draft"
+        revision={pending ? null : revision}
+        assigneeName={assigneeName ?? 'a parceira'}
+        disabled={busy || pending !== null}
+        onDone={(flash) => {
+          navigate(`${location.pathname}${location.search}`, { replace: true, state: flash ? { flash } : null });
+          onReload?.();
+        }}
+      />
+    ) : null;
+
   return (
+    <>
     <form
       id={formId}
       noValidate
@@ -760,5 +782,7 @@ export function RequestEditor({
         {busy ? 'A guardar o rascunho. O formulário fica bloqueado até o servidor confirmar.' : ''}
       </p>
     </form>
+    {cancelPanel}
+    </>
   );
 }

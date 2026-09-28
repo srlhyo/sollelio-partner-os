@@ -49,7 +49,11 @@ begin
   select array_agg(column_name::text order by ordinal_position) into pub
     from information_schema.columns where table_schema = 'public' and table_name = 'partner_requests';
 
-  if proj is distinct from pub || array['assignee_profile_id'] then
+  -- Same set of columns, whatever the order: `create or replace view` can only append,
+  -- so C4 appended `cancellation_reason` after the predicate column in the projection.
+  if (select array_agg(c order by c) from unnest(proj) c)
+     is distinct from (select array_agg(c order by c) from unnest(pub || array['assignee_profile_id']) c)
+     or 'assignee_profile_id' = any (pub) then
     raise exception 'Projection % is not the public contract % plus assignee_profile_id.', proj, pub;
   end if;
 

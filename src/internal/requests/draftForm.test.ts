@@ -12,7 +12,7 @@ const stored = (owner: string | null, criteria: string | null = 'Feito.'): Edita
     id: 'r1', organizationId: 'o1', productId: null, resourceId: null, type: 'task', status: 'draft', nextActor: 'none',
     title: 'Título', context: null, requestedAction: 'Faça isto.', estimatedEffortMinutes: 3, assigneeProfileId: 'p-nadia',
     dueAt: null, createdBy: 's-helio', createdAt: '2026-09-25T10:00:00Z', publishedAt: null,
-    updatedAt: '2026-09-25T10:00:00Z', revision: 6,
+    updatedAt: '2026-09-25T10:00:00Z', revision: 6, cancelledAt: null, cancellationReason: null,
     internal: criteria ? { completionCriteria: criteria, internalOwnerProfileId: owner, priority: 'normal' } : null,
   },
   fields: [],

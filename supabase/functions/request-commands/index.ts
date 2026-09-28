@@ -7,6 +7,7 @@
  *   POST /request-commands/publish  { request_id, expected_revision, idempotency_key } (C2)
  *   POST /request-commands/return   { request_id, expected_revision, return_id, response_type, message } (C3)
  *   POST /request-commands/complete { request_id, expected_revision }              (C3)
+ *   POST /request-commands/cancel   { request_id, expected_revision, reason }      (C4)
  *
  * The partner's own command (submit) lives in `partner-request-commands`, so this
  * function stays staff-only for every action.
@@ -30,7 +31,7 @@ const MAX_BODY_BYTES = 64 * 1024;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type Action = 'create' | 'update' | 'preview' | 'publish' | 'return' | 'complete';
+type Action = 'create' | 'update' | 'preview' | 'publish' | 'return' | 'complete' | 'cancel';
 
 const SHAPES: Record<Action, readonly string[]> = {
   create: ['request_id', 'payload'],
@@ -39,6 +40,7 @@ const SHAPES: Record<Action, readonly string[]> = {
   publish: ['request_id', 'expected_revision', 'idempotency_key'],
   return: ['request_id', 'expected_revision', 'return_id', 'response_type', 'message'],
   complete: ['request_id', 'expected_revision'],
+  cancel: ['request_id', 'expected_revision', 'reason'],
 };
 
 /** SQLSTATE raised by the command functions → HTTP status and stable code. */
@@ -83,12 +85,15 @@ function validateBody(action: Action, body: unknown): { ok: true; value: Record<
       (typeof value.payload !== 'object' || value.payload === null || Array.isArray(value.payload))) {
     return { ok: false, details: fieldError('payload', 'invalid', 'Conteúdo do pedido inválido.') };
   }
-  if ((action === 'update' || action === 'publish' || action === 'return' || action === 'complete') &&
+  if ((action === 'update' || action === 'publish' || action === 'return' || action === 'complete' || action === 'cancel') &&
       (typeof value.expected_revision !== 'number' || !Number.isInteger(value.expected_revision) || value.expected_revision < 1)) {
     return { ok: false, details: fieldError('expected_revision', 'invalid', 'Versão esperada inválida.') };
   }
   if (action === 'publish' && (typeof value.idempotency_key !== 'string' || !UUID.test(value.idempotency_key))) {
     return { ok: false, details: fieldError('idempotency_key', 'invalid', 'Chave da operação inválida.') };
+  }
+  if (action === 'cancel' && typeof value.reason !== 'string') {
+    return { ok: false, details: fieldError('reason', 'required', 'Escreva o motivo do cancelamento.') };
   }
   if (action === 'return') {
     if (typeof value.return_id !== 'string' || !UUID.test(value.return_id)) {
@@ -155,6 +160,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
       p_expected_revision: input.expected_revision, p_response_type: input.response_type, p_message: input.message }),
     complete: () => admin.rpc('cmd_complete_request', {
       p_actor: staff.profileId, p_request_id: input.request_id, p_expected_revision: input.expected_revision }),
+    cancel: () => admin.rpc('cmd_cancel_request', {
+      p_actor: staff.profileId, p_request_id: input.request_id, p_expected_revision: input.expected_revision,
+      p_reason: input.reason }),
   }[action];
 
   const { data, error } = await call();

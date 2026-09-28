@@ -104,3 +104,15 @@ describe('command client — C3 routes and bodies', () => {
     expect(error.ambiguous).toBe(false);
   });
 });
+
+describe('command client — C4 cancel', () => {
+  it('sends cancel to the staff function with the revision on screen and the reason', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: {} }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { cancelRequest } = await import('./commands');
+    await cancelRequest('r-1', 9, 'O evento foi adiado.');
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/\/functions\/v1\/request-commands\/cancel$/);
+    expect(JSON.parse(String(init.body))).toEqual({ request_id: 'r-1', expected_revision: 9, reason: 'O evento foi adiado.' });
+  });
+});

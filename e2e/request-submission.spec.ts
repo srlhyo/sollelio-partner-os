@@ -247,8 +247,9 @@ test('the whole loop: return with text, answer, return for approval, stale round
   }
   expect([401, 403]).toContain((await rest(null, `partner_request_returns?select=id&request_id=eq.${id}`)).status);
 
-  // The partner projection kept exactly its sixteen columns.
+  // The partner projection kept exactly its columns (seventeen from C4: cancellation_reason).
   const row = ((await rest(A.token, `partner_requests?select=*&id=eq.${id}`)).body as Record<string, unknown>[])[0] ?? {};
-  expect(Object.keys(row)).toHaveLength(16);
+  expect(Object.keys(row)).toHaveLength(17);
+  expect(row.cancellation_reason).toBeNull();
   expect(row.partner_state).toBe('done');
 });

@@ -613,3 +613,10 @@ a.row:hover .row__title { color: var(--indigo); }
 
 .actions-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .confirm { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+
+/* ---- Slice 2 C4 — cancellation -------------------------------------------- */
+.btn--danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn--danger-quiet { background: var(--surface); color: var(--red); border-color: var(--line); }
+.confirm--danger { border-color: var(--red-tint); background: var(--surface); }
+.banner__reason { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.banner__label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }

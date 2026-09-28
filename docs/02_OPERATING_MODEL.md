@@ -230,7 +230,7 @@ The review should remain lightweight. If system maintenance becomes burdensome, 
 
 An organization is archived only after its operational work is genuinely finished. Archiving is rejected while any Request is still open or any Issue is not closed.
 
-Nothing is cancelled or closed automatically on the organization's behalf. If work should not be completed, cancel or close each item deliberately — with the reason visible — and then archive. Archival records that a collaboration ended; it is not a way to sweep pending work out of sight.
+Nothing is cancelled or closed automatically on the organization's behalf. If work should not be completed, cancel or close each item deliberately — with the reason visible — and then archive. A cancelled Request carries its reason on the Request itself, which the partner reads when the Request had been published; cancellation is final. Archival records that a collaboration ended; it is not a way to sweep pending work out of sight.
 
 ## 17. Operating principle
 

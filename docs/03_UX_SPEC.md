@@ -149,6 +149,10 @@ If other Requests remain, the user may continue, but do not immediately redirect
 
 When the Request is with Sollelio, the detail says so in human terms (“Está com a Sollelio”) and shows the partner's own last response read-only (“A sua resposta”), with its date. No lifecycle names.
 
+### Cancelled
+
+A cancelled Request stays readable from its link, never in "Precisa de si". The detail says plainly "Este pedido foi cancelado pela Sollelio." with the date, shows the reason Sollelio gave, and says there is nothing left to do. There are no response controls and nothing can be sent. What the partner sent before stays visible, read-only. No internal notes, actors or lifecycle names appear.
+
 ### Returned to the partner — “Falta só isto”
 
 When Sollelio returns a Request, it asks one precise new question or action (`02 §4`). The detail makes clear this is a small follow-up, not the form again:
@@ -360,7 +364,13 @@ When the Request is `needs_sollelio` the detail offers exactly two actions:
 - **Concluir** — asks for confirmation, then marks the Request done. Use it when the completion criteria are met.
 - **Devolver à parceira** — a dialog with the message the partner will read (required; “peça a peça mais pequena de informação que falta”) and what kind of answer is expected: **Texto** or **Aprovação**. Nothing is sent without a message. The partner's next answer is to that message only.
 
-Both send the revision the operator is looking at; if the Request changed meanwhile, the page reloads it instead of acting. There is no Cancel or Reassign here yet.
+Both send the revision the operator is looking at; if the Request changed meanwhile, the page reloads it instead of acting. There is no Reassign here yet.
+
+### Cancelling a Request (C4)
+
+While a Request is open — a draft in the editor, or published and waiting on the partner or on Sollelio — the operator can **Cancelar pedido**. It is a secondary, destructive action and never a one-click one: it opens a small panel that says the cancellation is final, asks for the reason (required, up to 2000 characters, and the partner reads it when the Request was published) and needs an explicit "Confirmar cancelamento". It sends the revision on screen; if the Request changed meanwhile, the page reloads instead of acting.
+
+After cancelling, the Request reads as cancelled everywhere — chip "Cancelado", the date and the reason — and offers nothing further: a cancelled draft can no longer be edited or published. There is no delete and no reopen. A wrong or obsolete Request is cancelled and, if needed, replaced by a new one; published content is never edited.
 
 ## 16. Create Request
 

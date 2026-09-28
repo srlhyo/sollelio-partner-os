@@ -25,7 +25,7 @@ test.describe.configure({ mode: 'serial' });
 const PARTNER_COLUMNS = [
   'id', 'organization_id', 'product_id', 'product_name', 'type', 'title', 'context', 'requested_action',
   'estimated_effort_minutes', 'due_at', 'partner_state', 'published_at', 'completed_at', 'cancelled_at',
-  'related_update_id', 'resource_id',
+  'related_update_id', 'resource_id', 'cancellation_reason',
 ];
 
 let admin: SupabaseClient;
@@ -239,7 +239,7 @@ test('a preview names its revision; any later edit makes it stale for publicatio
     .toBe('needs_partner/partner/true');
 });
 
-test('the partner sees exactly her published Requests, with the sixteen-column projection', async () => {
+test('the partner sees exactly her published Requests, with the seventeen-column projection', async () => {
   const drafted = await createDraft({ title: `Rascunho ${tag}`, type: 'question', fields: [{ label: 'Oculta?', type: 'boolean', required: true }] });
   const published = await createDraft({
     title: `Publicado ${tag}`, type: 'question', product_id: product.P1, resource_id: resource.R1,
@@ -340,13 +340,14 @@ test('states no C2 command reaches yet render in the partner projection', async 
   const { id } = await createDraft({ title: `Estados ${tag}` });
   expect((await publish(id, (await preview(id)).revision)).status).toBe(200);
 
-  // Privileged transitions stand in for the C3/C4 commands on this synthetic Request.
+  // Privileged transitions stand in for the lifecycle commands on this synthetic Request
+  // (the C4 command never cancels a completed one, so SQL reaches that state here).
   const state = async () => ((await rest(A.token, `partner_requests?select=partner_state&id=eq.${id}`)).body as { partner_state: string }[])[0]?.partner_state;
   sql(`update public.requests set status = 'needs_sollelio', next_actor = 'sollelio' where id = '${id}'`);
   expect(await state()).toBe('with_sollelio');
   sql(`update public.requests set status = 'completed', next_actor = 'none', completed_at = now() where id = '${id}'`);
   expect(await state()).toBe('done');
-  sql(`update public.requests set status = 'cancelled', next_actor = 'none', cancelled_at = now() where id = '${id}'`);
+  sql(`update public.requests set status = 'cancelled', next_actor = 'none', cancelled_at = now(), cancellation_reason = 'Estado sintético.' where id = '${id}'`);
   expect(await state()).toBe('cancelled');
 });
 

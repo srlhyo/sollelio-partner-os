@@ -34,6 +34,8 @@ export interface PartnerRequestRecord {
   cancelled_at: string | null;
   related_update_id: string | null;
   resource_id: string | null;
+  /** Why Sollelio cancelled it (C4); null unless `partner_state` is `cancelled`. */
+  cancellation_reason: string | null;
 }
 
 /** One row of `request_fields`, as the partner (and the preview) reads it. */
@@ -83,6 +85,9 @@ export interface InternalRequest {
   publishedAt: string | null;
   updatedAt: string;
   revision: number;
+  /** C4: set together, only when the Request is cancelled. */
+  cancelledAt: string | null;
+  cancellationReason: string | null;
   internal: {
     completionCriteria: string;
     internalOwnerProfileId: string | null;
@@ -210,6 +215,7 @@ export const ACTIVITY_LABELS: Record<string, string> = {
   'request.submitted': 'Respondeu ao pedido',
   'request.returned_to_partner': 'Devolveu à parceira',
   'request.completed': 'Concluiu o pedido',
+  'request.cancelled': 'Cancelou o pedido',
 };
 
 /**
@@ -228,7 +234,14 @@ export const LIMITS = {
   answer: 4000,
   /** C3: the message of a return. */
   returnMessage: 2000,
+  /** C4: the reason of a cancellation. */
+  cancellationReason: 2000,
 } as const;
 
 /** Effort presets offered in the editor. `~3` is the onboarding baseline (07 §9). */
 export const EFFORT_PRESETS = [1, 2, 3, 5, 10, 15] as const;
+
+/** States a Request can be cancelled from (C4): the open ones. Cancellation is final. */
+export const CANCELLABLE_STATUSES: readonly RequestStatus[] = ['draft', 'needs_partner', 'needs_sollelio'];
+
+export const isCancellable = (status: RequestStatus) => CANCELLABLE_STATUSES.includes(status);
