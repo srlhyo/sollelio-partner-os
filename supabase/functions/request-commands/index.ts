@@ -1,11 +1,15 @@
 /**
- * request-commands — the C2 Request commands (05_DATA_MODEL_AND_API.md §13).
+ * request-commands — the staff Request commands (05_DATA_MODEL_AND_API.md §13).
  *
- *   POST /request-commands/create   { request_id, payload }
- *   POST /request-commands/update   { request_id, expected_revision, payload }
- *   POST /request-commands/preview  { request_id }
- *   POST /request-commands/publish  { request_id, expected_revision, idempotency_key }
+ *   POST /request-commands/create   { request_id, payload }                        (C2)
+ *   POST /request-commands/update   { request_id, expected_revision, payload }     (C2)
+ *   POST /request-commands/preview  { request_id }                                 (C2)
+ *   POST /request-commands/publish  { request_id, expected_revision, idempotency_key } (C2)
+ *   POST /request-commands/return   { request_id, expected_revision, return_id, response_type, message } (C3)
+ *   POST /request-commands/complete { request_id, expected_revision }              (C3)
  *
+ * The partner's own command (submit) lives in `partner-request-commands`, so this
+ * function stays staff-only for every action.
  * This function verifies the caller and the shape of the body; the transactional
  * rules live in the SQL functions it calls (`public.cmd_*`), which only
  * `service_role` may execute. The actor always comes from the verified session.
@@ -26,13 +30,15 @@ const MAX_BODY_BYTES = 64 * 1024;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type Action = 'create' | 'update' | 'preview' | 'publish';
+type Action = 'create' | 'update' | 'preview' | 'publish' | 'return' | 'complete';
 
 const SHAPES: Record<Action, readonly string[]> = {
   create: ['request_id', 'payload'],
   update: ['request_id', 'expected_revision', 'payload'],
   preview: ['request_id'],
   publish: ['request_id', 'expected_revision', 'idempotency_key'],
+  return: ['request_id', 'expected_revision', 'return_id', 'response_type', 'message'],
+  complete: ['request_id', 'expected_revision'],
 };
 
 /** SQLSTATE raised by the command functions → HTTP status and stable code. */
@@ -77,12 +83,23 @@ function validateBody(action: Action, body: unknown): { ok: true; value: Record<
       (typeof value.payload !== 'object' || value.payload === null || Array.isArray(value.payload))) {
     return { ok: false, details: fieldError('payload', 'invalid', 'Conteúdo do pedido inválido.') };
   }
-  if ((action === 'update' || action === 'publish') &&
+  if ((action === 'update' || action === 'publish' || action === 'return' || action === 'complete') &&
       (typeof value.expected_revision !== 'number' || !Number.isInteger(value.expected_revision) || value.expected_revision < 1)) {
     return { ok: false, details: fieldError('expected_revision', 'invalid', 'Versão esperada inválida.') };
   }
   if (action === 'publish' && (typeof value.idempotency_key !== 'string' || !UUID.test(value.idempotency_key))) {
     return { ok: false, details: fieldError('idempotency_key', 'invalid', 'Chave da operação inválida.') };
+  }
+  if (action === 'return') {
+    if (typeof value.return_id !== 'string' || !UUID.test(value.return_id)) {
+      return { ok: false, details: fieldError('return_id', 'invalid', 'Identificador da devolução inválido.') };
+    }
+    if (typeof value.response_type !== 'string') {
+      return { ok: false, details: fieldError('response_type', 'required', 'Escolha o tipo de resposta: texto ou aprovação.') };
+    }
+    if (typeof value.message !== 'string') {
+      return { ok: false, details: fieldError('message', 'required', 'Escreva o que falta, para a parceira ler.') };
+    }
   }
   return { ok: true, value };
 }
@@ -133,6 +150,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
     publish: () => admin.rpc('cmd_publish_request', {
       p_actor: staff.profileId, p_request_id: input.request_id, p_expected_revision: input.expected_revision,
       p_idempotency_key: input.idempotency_key }),
+    return: () => admin.rpc('cmd_return_request_to_partner', {
+      p_actor: staff.profileId, p_request_id: input.request_id, p_return_id: input.return_id,
+      p_expected_revision: input.expected_revision, p_response_type: input.response_type, p_message: input.message }),
+    complete: () => admin.rpc('cmd_complete_request', {
+      p_actor: staff.profileId, p_request_id: input.request_id, p_expected_revision: input.expected_revision }),
   }[action];
 
   const { data, error } = await call();

@@ -1,13 +1,21 @@
 /**
- * Request commands — calls to the `request-commands` Edge Function.
+ * Request commands — calls to the `request-commands` (staff) and
+ * `partner-request-commands` (partner) Edge Functions.
  *
  * The browser never writes Request tables: it holds no grant to. It sends the
  * signed-in user's access token and the function decides, after verifying that
- * session and resolving a staff profile (05_DATA_MODEL_AND_API.md §13).
+ * session and resolving the caller's profile (05_DATA_MODEL_AND_API.md §13).
  */
 import { env } from '../../platform/env';
 import { supabase } from '../../platform/supabase';
-import type { Priority, RequestPreview, RequestStatus, RequestType } from './types';
+import type {
+  ApprovalDecision,
+  Priority,
+  RequestPreview,
+  RequestStatus,
+  RequestType,
+  ReturnResponseType,
+} from './types';
 
 export interface FieldErrorItem {
   field: string;
@@ -28,6 +36,7 @@ export type CommandErrorCode =
   | 'stale_revision'
   | 'invalid_state'
   | 'idempotency_conflict'
+  | 'stale_round'
   | 'publish_requirements'
   | 'conflict'
   | 'busy'
@@ -96,14 +105,20 @@ export interface CommandResult {
   published_at?: string;
 }
 
-async function call<T>(action: 'create' | 'update' | 'preview' | 'publish', body: unknown): Promise<T> {
+type StaffAction = 'create' | 'update' | 'preview' | 'publish' | 'return' | 'complete';
+
+function call<T>(action: StaffAction, body: unknown): Promise<T> {
+  return send<T>('request-commands', action, body);
+}
+
+async function send<T>(fn: 'request-commands' | 'partner-request-commands', action: string, body: unknown): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new CommandError('unauthenticated', 401);
 
   let response: Response;
   try {
-    response = await fetch(`${env.supabaseUrl}/functions/v1/request-commands/${action}`, {
+    response = await fetch(`${env.supabaseUrl}/functions/v1/${fn}/${action}`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -158,6 +173,106 @@ export function previewRequest(requestId: string): Promise<RequestPreview> {
 /** `idempotencyKey` identifies one publication attempt; reuse it only to retry that attempt. */
 export function publishRequest(requestId: string, expectedRevision: number, idempotencyKey: string): Promise<CommandResult> {
   return call('publish', { request_id: requestId, expected_revision: expectedRevision, idempotency_key: idempotencyKey });
+}
+
+// ---- Response loop (C3) ------------------------------------------------------
+
+/** What the partner sends: the original answers, or the returned round's response. */
+export type SubmissionBody =
+  | { answers: { field_id: string; value: string | boolean }[] }
+  | { response: { text: string } }
+  | { response: { decision: ApprovalDecision; notes: string | null } };
+
+export interface SubmitResult {
+  request_id: string;
+  submission_id: string;
+  return_id: string | null;
+  status: RequestStatus;
+  revision: number | null;
+  submitted_at: string;
+  replayed: boolean;
+}
+
+/**
+ * `submissionId` is generated once per submission attempt; `expectedReturnId` is the
+ * round the partner is answering (null for the initial one). Retry an uncertain
+ * attempt only with the same id, round and body.
+ */
+export function submitRequest(
+  requestId: string,
+  submissionId: string,
+  expectedReturnId: string | null,
+  body: SubmissionBody,
+): Promise<SubmitResult> {
+  return send('partner-request-commands', 'submit', {
+    request_id: requestId,
+    submission_id: submissionId,
+    expected_return_id: expectedReturnId,
+    ...body,
+  });
+}
+
+export interface ReturnResult {
+  request_id: string;
+  return_id: string;
+  response_type: ReturnResponseType;
+  status: RequestStatus;
+  revision: number | null;
+  returned_at: string;
+  replayed: boolean;
+}
+
+/** `returnId` identifies one return attempt; reuse it only to retry that attempt. */
+export function returnRequestToPartner(
+  requestId: string,
+  expectedRevision: number,
+  returnId: string,
+  responseType: ReturnResponseType,
+  message: string,
+): Promise<ReturnResult> {
+  return call('return', {
+    request_id: requestId,
+    expected_revision: expectedRevision,
+    return_id: returnId,
+    response_type: responseType,
+    message,
+  });
+}
+
+export function completeRequest(requestId: string, expectedRevision: number): Promise<CommandResult> {
+  return call('complete', { request_id: requestId, expected_revision: expectedRevision });
+}
+
+/** pt-PT copy for a partner's submission failure that is not a field error. */
+export function submissionErrorMessage(error: unknown): string {
+  if (!(error instanceof CommandError)) return 'Não conseguimos enviar. As suas respostas continuam aqui; tente outra vez.';
+  switch (error.code) {
+    case 'unauthenticated':
+      return 'A sua sessão terminou.';
+    case 'validation_failed':
+      return 'Falta completar ou corrigir algumas respostas.';
+    case 'stale_round':
+    case 'invalid_state':
+      return 'Este pedido mudou entretanto. Mostramos-lhe o que ele pede agora.';
+    case 'not_found':
+    case 'no_profile':
+      return 'Não conseguimos abrir este pedido.';
+    case 'idempotency_conflict':
+      return 'Esta resposta já tinha sido enviada com outro conteúdo. Recarregue o pedido.';
+    case 'payload_too_large':
+      return 'A resposta é demasiado longa.';
+    default:
+      return 'Não conseguimos enviar. As suas respostas continuam aqui; verifique a ligação e tente outra vez.';
+  }
+}
+
+/** pt-PT copy for a failed Return or Complete (staff, C3). */
+export function lifecycleErrorMessage(error: unknown): string {
+  if (error instanceof CommandError) {
+    if (error.code === 'invalid_state') return 'Este pedido já não está à espera da Sollelio. Recarregue para ver o estado actual.';
+    if (error.code === 'stale_revision') return 'Este pedido foi alterado entretanto. Recarregue antes de continuar.';
+  }
+  return commandErrorMessage(error);
 }
 
 /** pt-PT copy for command failures that are not field errors. */

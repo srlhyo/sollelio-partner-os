@@ -6,7 +6,7 @@ per bounded area from `04_TECHNICAL_ARCHITECTURE.md` §13:
 | Module | Arrives in | Status |
 | --- | --- | --- |
 | `organizations`, `people`, `products`, `resources` | Slice 1 | present |
-| `requests` | Slice 2 | present (C2: reads, commands, formatting, ordering) |
+| `requests` | Slice 2 | present (C2: reads, commands, formatting, ordering; C3: answers, rounds, submit / return / complete) |
 | `activity` | Slice 2 | read inside `requests` for now |
 | `updates` | Slice 3 | not yet |
 | `issues` | Slice 4 | not yet |

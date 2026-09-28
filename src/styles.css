@@ -565,3 +565,51 @@ a.row:hover .row__title { color: var(--indigo); }
   .kv dd { margin-bottom: 8px; }
   .history li { flex-direction: column; gap: 2px; }
 }
+
+/* ---- Slice 2 C3 — response loop ------------------------------------------ */
+.respond { display: flex; flex-direction: column; gap: 14px; }
+.respond--preview { opacity: 0.9; }
+.respond__actions { display: flex; flex-direction: column; gap: 8px; }
+.respond__note { margin: 0; font-size: 14px; color: var(--ink-2); }
+.answers { display: flex; flex-direction: column; gap: 18px; }
+.answer { display: flex; flex-direction: column; gap: 8px; }
+.answer__set { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.answer__label { padding: 0; font-size: 15px; font-weight: 600; }
+/* Targets comfortable on a phone: the two decisions are the primary actions (03 §6). */
+.choices--decision label { min-height: 48px; padding: 0 16px; font-size: 15px; }
+.choices input:disabled + *, .choices label:has(input:disabled) { cursor: not-allowed; opacity: 0.75; }
+
+.followup {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 16px; border-radius: var(--radius);
+  background: var(--amber-tint); border-left: 4px solid var(--amber);
+}
+.followup__title { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--amber); }
+.followup__message { margin: 0; font-size: 16px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+
+.rq--returned { border-left: 4px solid var(--amber); }
+.rq__flag { align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: var(--amber-tint); color: var(--amber); font-size: 12px; font-weight: 600; }
+
+.sent { display: flex; flex-direction: column; gap: 14px; }
+.sent__more { display: flex; flex-direction: column; gap: 10px; }
+.sent__more p { margin: 0; }
+
+.prev__list { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.prev__item { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: var(--radius); }
+.prev__asked { display: flex; flex-direction: column; gap: 4px; }
+.prev__meta { font-size: 13px; color: var(--ink-2); }
+.prev__answers { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.prev__answers dt { font-size: 14px; font-weight: 600; }
+.prev__answers dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+
+.loop { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.loop__item { display: flex; flex-direction: column; gap: 8px; padding-left: 12px; border-left: 3px solid var(--indigo); }
+.loop__item--return { border-left-color: var(--amber); }
+.loop__head { font-size: 14px; color: var(--ink-2); }
+.loop__head strong { color: var(--ink); }
+.loop__text { margin: 0; font-size: 14px; white-space: pre-line; overflow-wrap: anywhere; }
+.loop__quote { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--amber-tint); font-size: 14px; white-space: pre-line; overflow-wrap: anywhere; }
+.kv__row { display: contents; }
+
+.actions-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.confirm { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }

@@ -88,3 +88,9 @@ file_size_limit = "50MiB"
 # then validates the session with the Auth server and resolves the staff profile.
 [functions.request-commands]
 verify_jwt = true
+
+# C3 partner Request commands (submit). Same two gates: the gateway verifies the JWT,
+# then the function validates the session with the Auth server and resolves the
+# profile; the SQL command authorizes that profile as the Request's assignee.
+[functions.partner-request-commands]
+verify_jwt = true

@@ -124,15 +124,41 @@ Linear structure:
 5. response controls;
 6. submit.
 
+The response controls are the real inputs for the Request's `request_fields`, in their order: a text area for long text, one choice among the options for single choice, Sim / Não for boolean, and the approval decision (§6). Each shows whether it is optional. The partner submits the whole response at once; there is no partial saving.
+
+### Submitting
+
+While a response is being sent, the whole form is disabled, a second submission cannot start, and a spoken progress message says it is being sent. Answers live only on the page (in memory): they are never stored in the browser.
+
+- **Rejected** (something is missing or invalid): the answers stay filled in and each problem is named next to its question, in pt-PT.
+- **Uncertain** (the connection failed or the server did not answer clearly): the answers stay filled in and the page offers to try again. Trying again repeats the same submission, so it can never be counted twice.
+- **Changed meanwhile** (Sollelio returned the Request again, or it no longer waits on the partner): the page reloads the Request as it is now, instead of guessing.
+- **Session ended** (any 401): the page says the session ended, does not redirect on its own, and offers sign-in back to this Request — stating plainly that leaving the page to sign in loses the answers not yet sent.
+
 ### Submission success
 
 After submit, show explicit confirmation such as:
 
-- “Sent.”
-- “We have what we need.”
-- “It’s with us now.”
+- “Enviado.”
+- “Já está connosco.”
+- “A Sollelio vai rever a sua resposta.”
 
-If other Requests remain, the user may continue, but do not immediately redirect without confirmation.
+If other Requests remain, the user may continue, but do not immediately redirect without confirmation. The confirmation and Home show the partner's attention as the server now reports it; a card is never removed on the assumption that the submission worked.
+
+### With Sollelio
+
+When the Request is with Sollelio, the detail says so in human terms (“Está com a Sollelio”) and shows the partner's own last response read-only (“A sua resposta”), with its date. No lifecycle names.
+
+### Returned to the partner — “Falta só isto”
+
+When Sollelio returns a Request, it asks one precise new question or action (`02 §4`). The detail makes clear this is a small follow-up, not the form again:
+
+1. a banner “Falta só isto” with Sollelio's message;
+2. the one control that answers it — a text answer for a text return, or Aprovar / Precisa de alterações (with optional notes after Precisa de alterações) for an approval return;
+3. submit;
+4. below, read-only: the partner's previous response(s), with dates, and the original Request for context.
+
+The original fields are never shown as editable again and are never re-submitted. On Home the card says it needs the partner again (“Voltou a precisar de si”), without internal vocabulary. Success and failure behave exactly as for the first response.
 
 ## 6. Approval Request
 
@@ -144,6 +170,8 @@ Show the material first, then two primary actions:
 Only reveal the change-feedback field after “Needs changes”.
 
 There is one approval mechanism. An approval Request carries a system-generated approval field plus an optional notes field; authors never hand-build approval questions, and this screen always renders from the same known shape.
+
+The notes are optional even after “Needs changes”, and are never sent with “Approve”: choosing Approve after typing notes hides them and does not send them. A returned approval round (§5, “Falta só isto”) uses the same two actions and the same notes rule for its new decision; it never re-opens the original approval field.
 
 ## 7. Test Request
 
@@ -315,6 +343,25 @@ Display operational metadata, then clearly separate:
 
 Internal-only content here is not merely styled differently — it comes from a separate internal record that no partner surface can read. “Preview as Partner” is therefore an honest preview: it renders the same projection the partner receives.
 
+### Response history
+
+Once the partner has answered, the detail shows one chronological, operational history — not a chat:
+
+- “Resposta de {nome}” with the date and exactly what was sent: each original question with its answer (unanswered optional questions shown as such), or the answer to a return round;
+- “Devolvido à parceira” with the date, who returned it, the kind of answer asked (texto / aprovação) and the message, word for word;
+- then the next response, and so on.
+
+The header keeps saying who acts next (Espera pela Sollelio / Espera pela parceira / Concluído).
+
+### Actions while it waits on Sollelio
+
+When the Request is `needs_sollelio` the detail offers exactly two actions:
+
+- **Concluir** — asks for confirmation, then marks the Request done. Use it when the completion criteria are met.
+- **Devolver à parceira** — a dialog with the message the partner will read (required; “peça a peça mais pequena de informação que falta”) and what kind of answer is expected: **Texto** or **Aprovação**. Nothing is sent without a message. The partner's next answer is to that message only.
+
+Both send the revision the operator is looking at; if the Request changed meanwhile, the page reloads it instead of acting. There is no Cancel or Reassign here yet.
+
 ## 16. Create Request
 
 Use progressive disclosure. Core inputs:
@@ -334,6 +381,8 @@ Choosing type **approval** generates the approval response automatically. Do not
 Question types available in V0 are long text, single choice, boolean and approval. That is deliberately the set the partner surfaces render; adding a type is a product decision, not an authoring convenience.
 
 Must include **Preview as Partner** before publication. The draft is saved first and the preview is rendered by the partner's own detail component from the server-side partner projection (`05 §12.3`); if saving fails, the preview does not open. Publication sends the revision the preview showed, so a later edit makes it stale.
+
+The preview shows the response controls exactly as the partner will receive them for the published Request, but they are not interactive: they cannot be filled in, there is no working submit, and nothing is sent.
 
 ## 17. Create Update
 
@@ -408,6 +457,8 @@ Design for the realistic failure cases: the link opening in a different browser 
 Use skeletons where appropriate instead of blank screens.
 
 Error state must preserve unsent partner input where possible. Failed submissions should not erase text/audio metadata before the server confirms success.
+
+“Where possible” means while the page stays open: unsent input is kept in memory, never in browser storage (`04 §17`). When the session ends, the page says so and that leaving it to sign in loses what was not sent (§5, Submitting).
 
 ## 22. Media/upload UX
 

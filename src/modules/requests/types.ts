@@ -104,6 +104,60 @@ export interface ActivityEntry {
   createdAt: string;
 }
 
+// ---- Response loop (C3, 05_DATA_MODEL_AND_API.md §4, §13) ----------------------
+
+export type ReturnResponseType = 'text' | 'approval';
+export type ApprovalDecision = 'approve' | 'needs_changes';
+
+/** One row of `partner_request_returns`: what Sollelio asked when it returned the Request. */
+export interface PartnerReturnRecord {
+  id: string;
+  request_id: string;
+  response_type: ReturnResponseType;
+  message: string;
+  created_at: string;
+}
+
+/** A return as staff read it, with who returned it. */
+export interface InternalReturnRecord extends PartnerReturnRecord {
+  created_by: string;
+}
+
+/** One answer to an original field (initial round only). */
+export interface AnswerRecord {
+  request_field_id: string;
+  value: unknown;
+}
+
+/**
+ * One submission, as its author (RLS: own only) or staff read it. `return_id` null is
+ * the initial round, answered in `answers`; otherwise the round's own response.
+ */
+export interface SubmissionRecord {
+  id: string;
+  request_id: string;
+  submitted_by: string;
+  return_id: string | null;
+  response_text: string | null;
+  response_decision: ApprovalDecision | null;
+  response_notes: string | null;
+  created_at: string;
+  answers: AnswerRecord[];
+}
+
+/** The round the partner answers now: the initial one, or the current return. */
+export type CurrentRound = { kind: 'initial' } | { kind: 'returned'; ret: PartnerReturnRecord };
+
+export const RETURN_RESPONSE_TYPE_LABELS: Record<ReturnResponseType, string> = {
+  text: 'Texto',
+  approval: 'Aprovação',
+};
+
+export const APPROVAL_DECISION_LABELS: Record<ApprovalDecision, string> = {
+  approve: 'Aprovar',
+  needs_changes: 'Precisa de alterações',
+};
+
 export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
   review: 'Revisão',
   approval: 'Aprovação',
@@ -153,6 +207,9 @@ export const FIELD_TYPE_LABELS: Record<Exclude<FieldType, 'approval'>, string> =
 export const ACTIVITY_LABELS: Record<string, string> = {
   'request.created': 'Criou o pedido',
   'request.published': 'Publicou o pedido',
+  'request.submitted': 'Respondeu ao pedido',
+  'request.returned_to_partner': 'Devolveu à parceira',
+  'request.completed': 'Concluiu o pedido',
 };
 
 /**
@@ -167,6 +224,10 @@ export const LIMITS = {
   helpText: 1000,
   options: 20,
   option: 200,
+  /** C3: a text answer, a returned-round reply, approval notes. */
+  answer: 4000,
+  /** C3: the message of a return. */
+  returnMessage: 2000,
 } as const;
 
 /** Effort presets offered in the editor. `~3` is the onboarding baseline (07 §9). */

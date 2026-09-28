@@ -1,6 +1,6 @@
 /**
  * `/app/organizations/:slug/requests/:requestId` — the editor for a draft, the
- * read-only detail otherwise. A Request of another organization is "not found"
+ * detail otherwise (with the response loop's actions, C3). A Request of another organization is "not found"
  * here, whatever its id.
  */
 import { useLocation, useParams } from 'react-router-dom';
@@ -55,5 +55,12 @@ export function RequestRoute({ organization }: { organization: Organization }) {
     );
   }
 
-  return <InternalRequestDetail organization={organization} request={result.data.request} fields={result.data.fields} />;
+  return (
+    <InternalRequestDetail
+      organization={organization}
+      request={result.data.request}
+      fields={result.data.fields}
+      onReload={result.reload}
+    />
+  );
 }

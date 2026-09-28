@@ -89,6 +89,24 @@ export async function command(token: string | null, action: string, body: unknow
   return { status: response.status, body: parsed as Reply['body'] };
 }
 
+/** The partner command function (C3): `submit`. */
+export async function partnerCommand(token: string | null, action: string, body: unknown): Promise<Reply> {
+  const headers: Record<string, string> = { apikey: ANON_KEY, 'content-type': 'application/json' };
+  if (token) headers.authorization = `Bearer ${token}`;
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/partner-request-commands/${action}`, {
+    method: 'POST',
+    headers,
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  });
+  let parsed: unknown = {};
+  try {
+    parsed = await response.json();
+  } catch {
+    parsed = {};
+  }
+  return { status: response.status, body: parsed as Reply['body'] };
+}
+
 /** A PostgREST call as a person (or anon when token is null). */
 export async function rest(token: string | null, path: string, init: RequestInit = {}) {
   const headers: Record<string, string> = { apikey: ANON_KEY, 'content-type': 'application/json', ...(init.headers as Record<string, string>) };

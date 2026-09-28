@@ -50,6 +50,15 @@ Each Request must have completion criteria. Conversation does not equal completi
 
 A Request can move repeatedly between partner and Sollelio when necessary, but it should return to the partner only with a clear new question or action.
 
+A return is **one** precise question or action, written for the partner — e.g. “Falta só confirmar se isto também acontece no telemóvel.” The partner answers only that; they never fill in the original form again, and what they sent before stays as they sent it. In V0 a return asks for one of two things:
+
+- a short written reply (**text**);
+- a new decision, Aprovar / Precisa de alterações (**approval**) — e.g. to re-approve material after the requested changes were made.
+
+A return is never a vague “can you explain better?” (§8), never a rewrite of the published Request, and never a conversation.
+
+Once the partner has answered, Sollelio's next step is to complete the Request when its completion criteria are met, or to return it with that one new question or action.
+
 ## 5. Update rules
 
 Create an Update when a visible or operationally meaningful change should be communicated, including:

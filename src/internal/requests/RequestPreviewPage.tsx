@@ -285,6 +285,7 @@ export function RequestPreviewPage({ organization }: { organization: Organizatio
             resource={preview.resource ? toResource(preview.resource as unknown as ResourceRow) : null}
             resourceUnavailable={preview.resource_unavailable}
             headingLevel={2}
+            preview
           />
         </div>
       </div>

@@ -1,15 +1,17 @@
 /**
  * A Request on Partner Home: what, how long, by when, and one clear way in
- * (03_UX_SPEC.md §4). No IDs, priority, owner or lifecycle names.
+ * (03_UX_SPEC.md §4). No IDs, priority, owner or lifecycle names. A Request Sollelio
+ * returned says so in plain words (03 §5, "Falta só isto").
  */
 import { Link } from 'react-router-dom';
 import { Icon } from '../platform/ui/Icon';
 import { formatDueShort, formatEffort } from '../modules/requests/format';
 import { REQUEST_TYPE_LABELS, type PartnerRequestRecord } from '../modules/requests/types';
 
-export function RequestCard({ request }: { request: PartnerRequestRecord }) {
+export function RequestCard({ request, returned = false }: { request: PartnerRequestRecord; returned?: boolean }) {
   return (
-    <Link className="rq" to={`/partner/requests/${request.id}`}>
+    <Link className={returned ? 'rq rq--returned' : 'rq'} to={`/partner/requests/${request.id}`}>
+      {returned ? <span className="rq__flag">Voltou a precisar de si</span> : null}
       <span className="rq__eyebrow">
         <span>{REQUEST_TYPE_LABELS[request.type]}</span>
         {request.product_name ? (
