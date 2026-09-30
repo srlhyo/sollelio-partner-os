@@ -29,6 +29,7 @@ security posture still holds.
 | `20260925160000_slice2_c2_request_authoring` | Wave 2 — Slice 2, C2 (revision, resource link, one partner projection, command receipts, the C2 commands) |
 | `20260928120000_slice2_c3_request_response_loop` | Wave 2 — Slice 2, C3 (returns, rounds on submissions, one submission per round, append-only history, `partner_request_returns`, submit / return / complete) |
 | `20260928180000_slice2_c4_request_cancellation` | Wave 2 — Slice 2, C4 (`requests.cancellation_reason`, cancelled-is-final trigger, `partner_requests` gains its seventeenth column, cancel) |
+| `20260930160000_c3_whitespace_canonicalization_hardening` | Wave 2 — Slice 2, C3 hardening (return message and returned-round text/notes trimmed through `app.request_trim`; constraints replaced and validated, no row rewritten) |
 
 Migrations are never edited once committed; a checkpoint that evolves an earlier
 object adds a new migration (C2 redefines `partner_requests` on top of

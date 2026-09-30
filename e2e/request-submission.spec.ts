@@ -253,3 +253,59 @@ test('the whole loop: return with text, answer, return for approval, stale round
   expect(row.cancellation_reason).toBeNull();
   expect(row.partner_state).toBe('done');
 });
+
+// C3 whitespace canonicalization hardening (20260930160000): the return message and the
+// returned-round text and notes trim every whitespace character at either end, as
+// String.trim() does — line breaks, tabs, no-break and other Unicode spaces.
+test('boundary whitespace of every kind is trimmed; whitespace-only is empty; replay is unchanged', async () => {
+  const WS = '\u00a0\u2003\u3000\ufeff';
+  const { id, fields } = await published('Espaços');
+  expect((await submit(A.token, id, newId(), null, answers(fields))).status).toBe(200);
+
+  const errorsOf = (r: Awaited<ReturnType<typeof command>>) =>
+    [r.status, r.body.error?.code, ...(r.body.error?.details?.errors ?? []).map((e) => `${e.field}:${e.code}`)];
+  const blankReturn = await command(S.token, 'return', {
+    request_id: id, expected_revision: revision(id), return_id: newId(), response_type: 'text', message: `\n\t\r\n${WS}`,
+  });
+  expect(errorsOf(blankReturn)).toEqual([422, 'validation_failed', 'message:required']);
+
+  const ret1 = newId();
+  const returnBody = { request_id: id, expected_revision: revision(id), return_id: ret1, response_type: 'text', message: `\n\t${WS} Acontece no telemóvel? \r\n\u00a0` };
+  expect((await command(S.token, 'return', returnBody)).status).toBe(200);
+  expect(sql(`select message from public.request_returns where id = '${ret1}'`)).toBe('Acontece no telemóvel?');
+  expect((await command(S.token, 'return', returnBody)).body.data?.replayed).toBe(true);
+
+  const blankText = await submit(A.token, id, newId(), ret1, { response: { text: `\n\t${WS}\r\n` } });
+  expect(errorsOf(blankText)).toEqual([422, 'validation_failed', 'response.text:required']);
+  const k = newId();
+  const textBody = { response: { text: `\u00a0\n Sim, também. \t\u3000` } };
+  const first = await submit(A.token, id, k, ret1, textBody);
+  expect(first.status, JSON.stringify(first.body)).toBe(200);
+  expect(sql(`select response_text from public.request_submissions where id = '${k}'`)).toBe('Sim, também.');
+  // Replay identity is unchanged: the same attempt replays, a changed one conflicts.
+  const again = await submit(A.token, id, k, ret1, textBody);
+  expect([again.status, again.body.data?.replayed, again.body.data?.revision]).toEqual([200, true, first.body.data?.revision]);
+  expect((await submit(A.token, id, k, ret1, { response: { text: 'Não.' } })).body.error?.code).toBe('idempotency_conflict');
+  expect(count(`select count(*) from public.request_submissions where return_id = '${ret1}'`)).toBe(1);
+  expect(count(`select count(*) from public.activity_events where object_id = '${id}' and event_type = 'request.submitted'`)).toBe(2);
+
+  // Approval round: padded notes stored canonical; whitespace-only notes are no notes.
+  const ret2 = newId();
+  expect((await command(S.token, 'return', {
+    request_id: id, expected_revision: revision(id), return_id: ret2, response_type: 'approval', message: 'Pode aprovar?',
+  })).status).toBe(200);
+  const withNotes = newId();
+  expect((await submit(A.token, id, withNotes, ret2, { response: { decision: 'needs_changes', notes: `\n\t Mudem a cor. ${WS}` } })).status).toBe(200);
+  expect(sql(`select response_notes from public.request_submissions where id = '${withNotes}'`)).toBe('Mudem a cor.');
+
+  const { id: id2, fields: fields2 } = await published('Espaços aprovar');
+  expect((await submit(A.token, id2, newId(), null, answers(fields2))).status).toBe(200);
+  const ret3 = newId();
+  expect((await command(S.token, 'return', {
+    request_id: id2, expected_revision: revision(id2), return_id: ret3, response_type: 'approval', message: 'Pode aprovar?',
+  })).status).toBe(200);
+  const approve = newId();
+  const approved = await submit(A.token, id2, approve, ret3, { response: { decision: 'approve', notes: `\u00a0\r\n${WS}` } });
+  expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+  expect(sql(`select response_decision || '/' || coalesce(response_notes, 'NULL') from public.request_submissions where id = '${approve}'`)).toBe('approve/NULL');
+});
