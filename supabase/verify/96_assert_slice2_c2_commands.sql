@@ -405,7 +405,7 @@ begin
   reset role;
   -- The two published ones only; the drafts stay invisible.
   perform pg_temp.expect('partner sees published only', n, 2::bigint);
-  perform pg_temp.expect('partner row has 16 keys', keys, 16);
+  perform pg_temp.expect('partner row has 17 keys (C4 appended cancellation_reason)', keys, 17);
 
   -- The commands are not reachable by the API roles, whatever the payload.
   foreach st in array array['authenticated', 'anon'] loop

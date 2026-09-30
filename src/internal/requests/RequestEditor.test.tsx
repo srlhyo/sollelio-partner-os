@@ -17,11 +17,12 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   load: vi.fn(),
+  cancel: vi.fn(),
 }));
 
 vi.mock('../../modules/requests/commands', async () => {
   const actual = await vi.importActual<typeof CommandsModule>('../../modules/requests/commands');
-  return { ...actual, createRequestDraft: mocks.create, updateRequestDraft: mocks.update };
+  return { ...actual, createRequestDraft: mocks.create, updateRequestDraft: mocks.update, cancelRequest: mocks.cancel };
 });
 vi.mock('../../modules/requests/consistent', async () => {
   const actual = await vi.importActual<object>('../../modules/requests/consistent');
@@ -68,7 +69,7 @@ const aggregate = (
     id: 'r1', organizationId: 'o1', productId: null, resourceId: null, type: 'task', status: 'draft', nextActor: 'none',
     title, context: null, requestedAction: 'Faça isto.', estimatedEffortMinutes: 3, assigneeProfileId: 'p-nadia',
     dueAt: null, createdBy: 's-helio', createdAt: '2026-09-25T10:00:00Z', publishedAt: null,
-    updatedAt: '2026-09-25T10:00:00Z', revision, internal,
+    updatedAt: '2026-09-25T10:00:00Z', revision, cancelledAt: null, cancellationReason: null, internal,
   },
   fields: [],
 });
@@ -111,6 +112,7 @@ beforeEach(() => {
   mocks.create.mockReset();
   mocks.update.mockReset();
   mocks.load.mockReset();
+  mocks.cancel.mockReset();
 });
 
 describe('saving is one locked attempt at a time', () => {
@@ -286,5 +288,38 @@ describe('the default internal owner when settling a lost update', () => {
     await screen.findByText('Rascunho guardado.');
     const [, expected, payload] = mocks.update.mock.calls[2] as [string, number, DraftPayload];
     expect([expected, payload.title]).toEqual([6, 'Depois']);
+  });
+});
+
+describe('cancelling a draft (C4)', () => {
+  it('a new draft offers no cancellation: there is nothing saved to cancel', async () => {
+    renderNew();
+    await screen.findByLabelText('Para quem');
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).toBeNull();
+  });
+
+  it('a saved draft is cancelled at the revision the editor last saved, then the route reads it again', async () => {
+    const user = userEvent.setup();
+    mocks.cancel.mockResolvedValue({ request_id: 'r1', revision: 8, status: 'cancelled', replayed: false });
+    const onReload = renderExisting(aggregate(7, 'Rascunho'));
+    await user.click(await screen.findByRole('button', { name: 'Cancelar pedido' }));
+    expect(screen.getByText(/O cancelamento é definitivo/)).toBeDefined();
+    expect(screen.getByText(/Este rascunho nunca foi publicado/)).toBeDefined();
+    await user.type(screen.getByLabelText('Motivo do cancelamento'), 'Afinal não é preciso.');
+    await user.click(screen.getByRole('button', { name: 'Confirmar cancelamento' }));
+    await waitFor(() => expect(onReload).toHaveBeenCalled());
+    expect(mocks.cancel).toHaveBeenCalledWith('r1', 7, 'Afinal não é preciso.');
+    // The cancel panel never sits inside the editor's form (no nested forms).
+    expect(document.querySelectorAll('form form').length).toBe(0);
+  });
+
+  it('cannot start while a save is in flight', async () => {
+    const user = userEvent.setup();
+    mocks.update.mockImplementation(() => new Promise(() => undefined));
+    renderExisting(aggregate(3, 'Antes'));
+    const title = await screen.findByLabelText('Título');
+    await user.type(title, ' e depois');
+    await user.click(screen.getByRole('button', { name: 'Guardar rascunho' }));
+    expect(screen.getByRole('button', { name: 'Cancelar pedido' })).toHaveProperty('disabled', true);
   });
 });

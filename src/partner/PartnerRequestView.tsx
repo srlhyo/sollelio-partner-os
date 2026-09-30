@@ -52,10 +52,14 @@ function StateBanner({ request }: { request: PartnerRequestRecord }) {
         <div className="banner banner--muted" role="status">
           <Icon name="alert" size={20} />
           <div>
-            <span className="banner__title">
-              A Sollelio cancelou este pedido
-              {request.cancelled_at ? ` a ${longDate(new Date(request.cancelled_at))}` : ''}
-            </span>
+            <span className="banner__title">Este pedido foi cancelado pela Sollelio.</span>
+            {request.cancelled_at ? <p>Cancelado a {longDate(new Date(request.cancelled_at))}.</p> : null}
+            {request.cancellation_reason ? (
+              <p className="banner__reason">
+                <span className="banner__label">Motivo</span>
+                {request.cancellation_reason}
+              </p>
+            ) : null}
             <p>Já não precisa de fazer nada aqui.</p>
           </div>
         </div>

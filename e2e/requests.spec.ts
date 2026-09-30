@@ -154,12 +154,7 @@ test('the operator reads the exact response and completes; the partner sees it d
   const partner = await asPartner(browser);
   await partner.page.goto(`/partner/requests/${requestId}`);
   await expect(partner.page.getByText(/^Concluído/)).toBeVisible();
-
-  // No C3 command reaches "cancelled" (cancellation is a later checkpoint); a
-  // privileged local update stands in for it, on this one Request only.
-  sql(`update public.requests set status = 'cancelled', next_actor = 'none', cancelled_at = now() where id = '${requestId}'`);
-  await partner.page.reload();
-  await expect(partner.page.getByText(/A Sollelio cancelou este pedido/)).toBeVisible();
+  // A completed Request cannot be cancelled; cancellation is covered by requests-cancel.spec.ts.
   await partner.close();
 });
 

@@ -22,7 +22,7 @@ import { PartnerResponse } from './PartnerResponse';
 const request: PartnerRequestRecord = {
   id: 'r1', organization_id: 'o1', product_id: null, product_name: null, type: 'question', title: 'Foi fácil?',
   context: null, requested_action: 'Diga-nos.', estimated_effort_minutes: 3, due_at: null, partner_state: 'needs_you',
-  published_at: '2026-09-28T10:00:00Z', completed_at: null, cancelled_at: null, related_update_id: null, resource_id: null,
+  published_at: '2026-09-28T10:00:00Z', completed_at: null, cancelled_at: null, related_update_id: null, resource_id: null, cancellation_reason: null,
 };
 
 const field = (patch: Partial<RequestFieldRecord>): RequestFieldRecord => ({

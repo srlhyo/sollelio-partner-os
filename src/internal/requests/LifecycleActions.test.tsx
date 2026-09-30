@@ -23,7 +23,7 @@ import { LifecycleActions } from './LifecycleActions';
 const request = {
   id: 'r1', organizationId: 'o1', productId: null, resourceId: null, type: 'question', status: 'needs_sollelio',
   nextActor: 'sollelio', title: 'Foi fácil?', context: null, requestedAction: 'Diga-nos.', estimatedEffortMinutes: 3,
-  assigneeProfileId: 'p1', dueAt: null, createdBy: 's1', createdAt: 'x', publishedAt: 'x', updatedAt: 'x', revision: 9,
+  assigneeProfileId: 'p1', dueAt: null, createdBy: 's1', createdAt: 'x', publishedAt: 'x', updatedAt: 'x', revision: 9, cancelledAt: null, cancellationReason: null,
   internal: null,
 } satisfies InternalRequest;
 

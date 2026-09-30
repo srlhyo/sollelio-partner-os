@@ -115,13 +115,28 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], storageState: '.auth/staff.json' },
     },
     {
+      // Slice 2 C4 cancellation at the API boundary: authorization, validation and
+      // real races against submit and complete. Own synthetic people; no page.
+      name: 'request-cancellation',
+      testMatch: /request-cancellation\.spec\.ts/,
+      use: { storageState: { cookies: [], origins: [] } },
+    },
+    {
+      // Slice 2 C4 through the UI: cancel a draft, a Request waiting on the partner and
+      // one waiting on Sollelio. Staff session here; the partner opens her own context.
+      name: 'requests-cancel',
+      testMatch: /requests-cancel\.spec\.ts/,
+      dependencies: ['setup'],
+      use: { ...devices['Desktop Chrome'], storageState: '.auth/staff.json' },
+    },
+    {
       // Signs in for itself and revokes that session server-side at the end, which
       // invalidates `.auth/staff.json`. Only the `internal` project uses that file,
       // so depending on it is enough to keep the suite deterministic — no reliance
       // on an access token outliving revocation.
       name: 'staff-logout',
       testMatch: /[\\/]staff-logout\.spec\.ts$/,
-      dependencies: ['internal', 'requests', 'requests-recovery', 'requests-loop'],
+      dependencies: ['internal', 'requests', 'requests-recovery', 'requests-loop', 'requests-cancel'],
       use: { ...devices['Desktop Chrome'], storageState: { cookies: [], origins: [] } },
     },
     {
@@ -132,7 +147,7 @@ export default defineConfig({
       // rather than depend on that.
       name: 'partner-logout',
       testMatch: /[\\/]logout\.spec\.ts$/,
-      dependencies: ['partner', 'internal', 'partner-boundary', 'post-auth-routing', 'requests', 'requests-recovery', 'requests-loop'],
+      dependencies: ['partner', 'internal', 'partner-boundary', 'post-auth-routing', 'requests', 'requests-recovery', 'requests-loop', 'requests-cancel'],
       use: { ...devices['Pixel 7'], storageState: { cookies: [], origins: [] } },
     },
   ],

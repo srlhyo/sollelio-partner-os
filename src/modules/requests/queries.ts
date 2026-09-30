@@ -134,6 +134,8 @@ interface RequestRow {
   published_at: string | null;
   updated_at: string;
   revision: number;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
   request_internal_details: InternalDetailsRow | InternalDetailsRow[] | null;
 }
 
@@ -146,6 +148,7 @@ interface InternalDetailsRow {
 const REQUEST_COLUMNS =
   'id, organization_id, product_id, resource_id, type, status, next_actor, title, context, requested_action, ' +
   'estimated_effort_minutes, assignee_profile_id, due_at, created_by, created_at, published_at, updated_at, revision, ' +
+  'cancelled_at, cancellation_reason, ' +
   'request_internal_details(completion_criteria, internal_owner_profile_id, priority)';
 
 function toInternal(row: RequestRow): InternalRequest {
@@ -171,6 +174,8 @@ function toInternal(row: RequestRow): InternalRequest {
     publishedAt: row.published_at,
     updatedAt: row.updated_at,
     revision: row.revision,
+    cancelledAt: row.cancelled_at,
+    cancellationReason: row.cancellation_reason,
     internal: details
       ? {
           completionCriteria: details.completion_criteria,

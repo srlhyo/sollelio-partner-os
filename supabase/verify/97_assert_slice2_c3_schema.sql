@@ -2,7 +2,7 @@
 --
 -- Proves the C3 objects exist in the shape 05_DATA_MODEL_AND_API.md §4, §12 and §13
 -- specify, that no API role gained a write, and that `partner_requests` kept its
--- sixteen-column contract.
+-- sixteen-column contract (seventeen from C4, which appends `cancellation_reason`).
 
 -- 1. Returns and rounds ---------------------------------------------------------
 do $$
@@ -77,8 +77,8 @@ begin
   if got is distinct from array[
     'id', 'organization_id', 'product_id', 'product_name', 'type', 'title', 'context', 'requested_action',
     'estimated_effort_minutes', 'due_at', 'partner_state', 'published_at', 'completed_at', 'cancelled_at',
-    'related_update_id', 'resource_id'] then
-    raise exception 'partner_requests is no longer its sixteen-column contract: %', got;
+    'related_update_id', 'resource_id', 'cancellation_reason'] then
+    raise exception 'partner_requests is no longer its contract (seventeen columns from C4): %', got;
   end if;
 
   select array_agg(column_name::text order by ordinal_position) into got

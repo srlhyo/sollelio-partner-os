@@ -105,7 +105,7 @@ export interface CommandResult {
   published_at?: string;
 }
 
-type StaffAction = 'create' | 'update' | 'preview' | 'publish' | 'return' | 'complete';
+type StaffAction = 'create' | 'update' | 'preview' | 'publish' | 'return' | 'complete' | 'cancel';
 
 function call<T>(action: StaffAction, body: unknown): Promise<T> {
   return send<T>('request-commands', action, body);
@@ -241,6 +241,24 @@ export function returnRequestToPartner(
 
 export function completeRequest(requestId: string, expectedRevision: number): Promise<CommandResult> {
   return call('complete', { request_id: requestId, expected_revision: expectedRevision });
+}
+
+/**
+ * Cancels an open Request at the revision on screen (C4). No key: an uncertain outcome
+ * is settled by reading the Request, as for complete.
+ */
+export function cancelRequest(requestId: string, expectedRevision: number, reason: string): Promise<CommandResult> {
+  return call('cancel', { request_id: requestId, expected_revision: expectedRevision, reason });
+}
+
+/** pt-PT copy for a failed cancellation (staff, C4). */
+export function cancelErrorMessage(error: unknown): string {
+  if (error instanceof CommandError) {
+    if (error.code === 'invalid_state') return 'Este pedido já está fechado (concluído ou cancelado). Recarregue para ver o estado actual.';
+    if (error.code === 'stale_revision') return 'Este pedido foi alterado entretanto. Recarregue antes de o cancelar.';
+    if (error.code === 'validation_failed') return error.fieldErrors[0]?.message ?? 'Escreva o motivo do cancelamento.';
+  }
+  return commandErrorMessage(error);
 }
 
 /** pt-PT copy for a partner's submission failure that is not a field error. */

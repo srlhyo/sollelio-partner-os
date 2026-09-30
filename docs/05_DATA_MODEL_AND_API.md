@@ -120,6 +120,7 @@ Internal base table. Partners never select from it (§12.3).
 - published_at nullable
 - completed_at nullable
 - cancelled_at nullable
+- cancellation_reason text nullable — why Sollelio cancelled the Request; set only by `cancel_request` (added in C4)
 - updated_at
 - revision integer NOT NULL default 1 — aggregate version (added in C2)
 
@@ -131,14 +132,16 @@ Consistency rules (enforced by check constraints and by the domain commands):
 - `needs_partner` => `next_actor = partner` AND `published_at IS NOT NULL`;
 - `needs_sollelio` => `next_actor = sollelio` AND `published_at IS NOT NULL`;
 - `completed` => `next_actor = none` AND `completed_at IS NOT NULL`;
-- `cancelled` => `next_actor = none` AND `cancelled_at IS NOT NULL`;
+- `cancelled` => `next_actor = none` AND `cancelled_at IS NOT NULL` AND `cancellation_reason IS NOT NULL` (C4); any other status => `cancellation_reason IS NULL`;
 - `assignee_profile_id` must be a profile with an **active** membership in `organization_id`.
 
 **Effort storage.** `estimated_effort_minutes` is an integer. The `<1 min` scale from `02_OPERATING_MODEL.md §2` is stored as `1` and rendered as `<1 min`, never as `1 min`. Zero is not a valid value.
 
 **Deadlines (C2).** `due_at` stays a `timestamptz`. Its operational time zone is **Europe/Lisbon** for V0: a deadline chosen as a day means 23:59:59 of that day in Lisbon, with the offset of that very day from the time-zone database (UTC+1 in summer, UTC+0 in winter; never a fixed offset). Every surface shows deadlines as Lisbon days, whatever the viewer's browser zone, so the same deadline reads as the same day in Portugal and in Brazil; the internal editor labels the field "hora de Lisboa". Opening and saving a draft without changing the day sends the stored instant unchanged. Relative wording ("até hoje", "até amanhã", "até sexta") compares Lisbon days.
 
-**Revision (C2).** `revision` is the version of the whole Request aggregate: the row, its `request_fields` and its `request_internal_details`. It is never written by a caller: a `BEFORE UPDATE` trigger on `requests` always sets it to the previous value plus one, and triggers on `request_fields` and `request_internal_details` touch the parent row on every insert, update and delete. Every relevant change therefore moves it, and no two versions of one Request share a number. `update_request_draft` requires the revision the caller read; `publish_request` requires the revision `preview_request` returned; `return_request_to_partner` and `complete_request` require the revision the operator reviewed (C3). Every lifecycle transition, including a partner's submission, moves the revision; the partner never sees it — their stale-state guard is the round (`expected_return_id`, §13). Internal notes, submissions, answers and returns are not part of the aggregate row and do not move it by themselves.
+**Cancellation (C4).** Cancellation is terminal: there is no reopen or restore. `cancellation_reason` is a first-class, partner-facing column — trimmed, 1–2000 characters — written only by `cancel_request` together with the transition to `cancelled`. A check constraint ties the reason to the cancelled state (present exactly when `status = cancelled`), and a trigger rejects any later change to a cancelled Request's status, `cancelled_at` or `cancellation_reason`, for every role. It is not part of the editable draft content: `update_request_draft` never accepts it. The reason is never stored only in Activity metadata or in an internal note.
+
+**Revision (C2). `revision` is the version of the whole Request aggregate: the row, its `request_fields` and its `request_internal_details`. It is never written by a caller: a `BEFORE UPDATE` trigger on `requests` always sets it to the previous value plus one, and triggers on `request_fields` and `request_internal_details` touch the parent row on every insert, update and delete. Every relevant change therefore moves it, and no two versions of one Request share a number. `update_request_draft` requires the revision the caller read; `publish_request` requires the revision `preview_request` returned; `return_request_to_partner` and `complete_request` require the revision the operator reviewed (C3). Every lifecycle transition, including a partner's submission, moves the revision; the partner never sees it — their stale-state guard is the round (`expected_return_id`, §13). Internal notes, submissions, answers and returns are not part of the aggregate row and do not move it by themselves.
 
 **Resource link (C2).** `resource_id` references `resources`; the URL itself is read from `resources` at render time and nowhere else. Enforced for every writer by trigger: the Resource belongs to the Request's organization, and when both the Request and the Resource carry a product they agree. Whether the Resource is active and partner-visible is a publication rule (§13): a draft may point at a link still being prepared. A Resource that later stops being active or visible simply stops being shown to the partner; the partner UI then says the link is no longer available, without exposing it.
 
@@ -473,7 +476,7 @@ V0 event types:
 - issue.followup_acknowledged
 - organization.archived
 
-Request lifecycle metadata stays minimal and never carries response text, which lives in the submission and return rows (C3): `request.submitted` `{ submission_id, return_id, revision }` (actor: the partner); `request.returned_to_partner` `{ return_id, response_type, revision }`; `request.completed` `{ revision }`.
+Request lifecycle metadata stays minimal and never carries response text, which lives in the submission and return rows (C3): `request.submitted` `{ submission_id, return_id, revision }` (actor: the partner); `request.returned_to_partner` `{ return_id, response_type, revision }`; `request.completed` `{ revision }`; `request.cancelled` `{ revision, previous_status }` (C4 — the reason itself lives on the Request, not in the event).
 
 `resource.opened` is written by the narrow `record_resource_opened` command (§13). It exists because “are the canonical links actually being used?” is a pilot question we cannot answer any other way (`07_DO_LUXO_A_MESA_PILOT.md §14`).
 
@@ -525,7 +528,7 @@ Partners **never** SELECT the `requests`, `issues` or `updates` base tables. RLS
 
 Partner reads go through explicit projections — PostgreSQL views created `WITH (security_barrier = true)`, owned by a privileged role, with `security_invoker` left off so the view's own predicate governs access. Each view carries its own membership/assignment predicate, and `SELECT` is granted on the view, not on the base table. An equivalent server-side read model (Edge Function returning the same shape) is acceptable; the column set is the contract, not the transport.
 
-**`partner_requests`** — predicate: `published_at IS NOT NULL` AND `assignee_profile_id` = calling profile AND active membership in `organization_id`. Sixteen columns, in this order:
+**`partner_requests`** — predicate: `published_at IS NOT NULL` AND `assignee_profile_id` = calling profile AND active membership in `organization_id`. Seventeen columns, in this order:
 
 - id, organization_id, product_id, product_name
 - type, title, context, requested_action
@@ -534,6 +537,7 @@ Partner reads go through explicit projections — PostgreSQL views created `WITH
 - published_at, completed_at, cancelled_at
 - related_update_id
 - resource_id (sixteenth, appended in C2; the first fifteen are unchanged in name and order)
+- cancellation_reason (seventeenth, appended in C4; NULL unless the Request is cancelled)
 
 Excluded: `status`, `next_actor`, `assignee_profile_id`, `created_by`, `revision`, and everything in `request_internal_details`.
 
@@ -605,7 +609,7 @@ Commands validate the caller's permission and the object's current state, write 
 
 ### Request commands
 
-C2 implements `create_request`, `update_request_draft`, `preview_request` and `publish_request`; C3 implements `submit_request`, `return_request_to_partner` and `complete_request` (contracts below). `reassign_request` and `cancel_request` remain as specified here for a later checkpoint (`06_BUILD_PLAN.md`, Slice 2).
+C2 implements `create_request`, `update_request_draft`, `preview_request` and `publish_request`; C3 implements `submit_request`, `return_request_to_partner` and `complete_request` (contracts below). C4 implements `cancel_request`. `reassign_request` remains as specified here for a later checkpoint (`06_BUILD_PLAN.md`, Slice 2).
 
 - `create_request` — for `type = approval`, generates the system approval fields (§4).
 - `update_request_draft` — replaces the editable content of a draft at the expected revision (C2).
@@ -615,7 +619,7 @@ C2 implements `create_request`, `update_request_draft`, `preview_request` and `p
 - `return_request_to_partner` — needs_sollelio => needs_partner. Requires a new question or action: one `request_returns` row with a message and a `text` or `approval` response type (C3).
 - `reassign_request` — changes `assignee_profile_id`. Target must hold an active membership in the Request's organization.
 - `complete_request` — => completed.
-- `cancel_request` — => cancelled.
+- `cancel_request` — draft | needs_partner | needs_sollelio => cancelled, with a required reason (C4).
 
 There is no `start_request`.
 
@@ -706,7 +710,23 @@ Effects, in one transaction: one `request_submissions` row (with the round's res
 - Partner: while a submission is in flight the form is disabled and a second submission cannot start. Answers live only in component memory — never `localStorage`, `sessionStorage`, IndexedDB or any other browser store. An ambiguous outcome (as in C2) keeps the exact attempt and settles it by repeating it: same `submission_id`, same round, same payload. `stale_round` and `invalid_state` reload the authoritative Request; `not_found` shows the not-found state. Any 401 says the session ended, does not redirect, and states that leaving to sign in loses the unsent answers. After success the confirmation re-reads the Request and "Precisa de si" from the server; nothing is removed optimistically.
 - Staff: return keeps its `return_id` for the attempt and repeats it on an ambiguous outcome; complete settles an ambiguous outcome by reading the Request. A `stale_revision` reloads before anything else is offered.
 
-**Reads.** Partners: `partner_requests` (unchanged, sixteen columns), `request_fields`, their own `request_submissions` and `request_answers`, and `partner_request_returns`. Staff: `request_submissions`, `request_answers` and `request_returns` under the staff policies, rendered as one chronological history.
+**Reads.** Partners: `partner_requests` (sixteen columns in C3; seventeen from C4), `request_fields`, their own `request_submissions` and `request_answers`, and `partner_request_returns`. Staff: `request_submissions`, `request_answers` and `request_returns` under the staff policies, rendered as one chronological history.
+
+#### C4 command contract — cancellation
+
+**Where it runs.** `POST /functions/v1/request-commands/cancel` — the staff function, same staff gate and `verify_jwt = true`, calling `public.cmd_cancel_request(p_actor, p_request_id, p_expected_revision, p_reason)`: `SECURITY INVOKER`, executable only by `service_role`, re-checking that the actor is staff.
+
+**Body.** `{ request_id, expected_revision, reason }`. Unknown keys are rejected.
+
+**Rules.** The Request is locked `FOR UPDATE` (the only lock; cancellation never needs the organization, the membership or the Resource, so it stays possible when the assignee left or the organization is inactive). Then, in this order: it must be `draft`, `needs_partner` or `needs_sollelio` (else 409 `invalid_state`); it must be at exactly `expected_revision` (else 409 `stale_revision`); `reason` is trimmed and must be 1–2000 characters (else 422 `validation_failed`, field `reason`, code `required` or `too_long`). Trimming removes every whitespace character at either end — line breaks, tabs, no-break and other Unicode spaces, as the client's `String.trim()` does — through `app.request_trim`, which the command and the column's check constraint share (service_role only); a reason made only of line breaks is `required`.
+
+**Effects**, in one transaction: `status = cancelled`, `next_actor = none`, `cancelled_at = now()`, `cancellation_reason = <trimmed reason>`, the revision moves (trigger), and one `request.cancelled` event. Fields, internal details, submissions, answers, returns, returned-round responses, published content and earlier Activity are untouched.
+
+**Replay.** No key, as for `complete_request`: a retried cancellation after success is `invalid_state`, and the client settles an ambiguous outcome by reading the Request (`cancelled` means it landed). Cancelling an already-cancelled Request is never a silent success.
+
+**Races.** Every Request command takes the Request row first, so cancellation serializes with submit, return, complete, update and publish. A submission that lands first moves the Request to `needs_sollelio` and moves the revision, so a cancellation at the older revision is `stale_revision` and staff re-read and may cancel the new state; a cancellation that lands first makes any fresh submission `invalid_state`. A replay of a submission that had already landed still replays (C3: identity before state). Complete and cancel can never both succeed on one revision.
+
+**Partner view.** A cancelled published Request stays readable by its assignee through `partner_requests` (`partner_state = cancelled`, with `cancelled_at` and `cancellation_reason`), with no response controls, and it is never in "Precisa de si". Earlier submissions stay readable by their author. A cancelled draft was never published, so no partner can see it.
 
 ### Update commands
 
@@ -873,6 +893,7 @@ Each wave corresponds exactly to one slice in `06_BUILD_PLAN.md`. Do not create 
 - `partner_requests` projection
 - C2 (`20260925160000_slice2_c2_request_authoring`): `requests.revision`, `requests.resource_id`, `app.partner_request_projection` (and `partner_requests` redefined on it), `request_command_receipts`, the four C2 command functions
 - C3 (`20260928120000_slice2_c3_request_response_loop`): `request_returns` and the `partner_request_returns` projection; `request_submissions.return_id`, the returned-round response columns and `payload_hash`; one submission per round; append-only triggers; `cmd_submit_request`, `cmd_return_request_to_partner`, `cmd_complete_request`
+- C4 (`20260928180000_slice2_c4_request_cancellation`): `requests.cancellation_reason` with its state constraint and immutability trigger, `partner_requests` extended with it (seventeenth column), `cmd_cancel_request`
 - `record_resource_opened` — canonical-resource instrumentation begins here, since it needs `activity_events`. Resources themselves ship in Slice 1; their open-tracking starts one slice later.
 
 ### Wave 3 — Slice 3 (Updates)

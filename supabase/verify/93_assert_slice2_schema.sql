@@ -60,14 +60,16 @@ $$;
 
 -- 3. `partner_requests` is a security-barrier view with exactly the contract --
 -- C1 defined fifteen columns. C2 (20260925160000) appends `resource_id` as the
--- sixteenth and keeps the first fifteen in name and order; the contract asserted
--- here is the current one (05_DATA_MODEL_AND_API.md §12.3).
+-- sixteenth and C4 (20260928180000) `cancellation_reason` as the seventeenth, each
+-- keeping the earlier columns in name and order; the contract asserted here is the
+-- current one (05_DATA_MODEL_AND_API.md §12.3).
 do $$
 declare
   want text[] := array[
     'id', 'organization_id', 'product_id', 'product_name', 'type', 'title', 'context',
     'requested_action', 'estimated_effort_minutes', 'due_at', 'partner_state',
-    'published_at', 'completed_at', 'cancelled_at', 'related_update_id', 'resource_id'];
+    'published_at', 'completed_at', 'cancelled_at', 'related_update_id', 'resource_id',
+    'cancellation_reason'];
   got text[];
   leaked text[];
   barrier boolean;

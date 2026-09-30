@@ -13,7 +13,7 @@ const base: PartnerRequestRecord = {
   title: 'Os endereços foram fáceis de encontrar?', context: 'Para confirmar a primeira visita.',
   requested_action: 'Abra o Sollelio Events e volte aqui.', estimated_effort_minutes: 3, due_at: null,
   partner_state: 'needs_you', published_at: '2026-09-25T10:00:00Z', completed_at: null, cancelled_at: null,
-  related_update_id: null, resource_id: null,
+  related_update_id: null, resource_id: null, cancellation_reason: null,
 };
 
 const field = (patch: Partial<RequestFieldRecord>): RequestFieldRecord => ({
@@ -96,7 +96,19 @@ describe('PartnerRequestView', () => {
     rerender(
       <PartnerRequestView request={{ ...base, partner_state: 'cancelled', cancelled_at: '2026-09-30T10:00:00Z' }} fields={[]} resource={null} resourceUnavailable={false} />,
     );
-    expect(screen.getByText(/A Sollelio cancelou este pedido/)).toBeDefined();
+    expect(screen.getByText('Este pedido foi cancelado pela Sollelio.')).toBeDefined();
+    rerender(
+      <PartnerRequestView
+        request={{ ...base, partner_state: 'cancelled', cancelled_at: '2026-09-30T10:00:00Z', cancellation_reason: 'O evento foi adiado.' }}
+        fields={[]}
+        resource={null}
+        resourceUnavailable={false}
+      />,
+    );
+    // The reason Sollelio gave is shown; nothing can be answered.
+    expect(screen.getByText('O evento foi adiado.')).toBeDefined();
+    expect(screen.getByText('Já não precisa de fazer nada aqui.')).toBeDefined();
+    expect(document.querySelectorAll('input, textarea, select, button').length).toBe(0);
   });
 
   it('handles a link that is no longer available without exposing it', () => {

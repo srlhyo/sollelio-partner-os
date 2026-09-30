@@ -1,7 +1,8 @@
 /**
  * A published Request, internally (03_UX_SPEC.md §15). C3 adds the response history
  * and, while the Request waits on Sollelio, the two next steps: complete, or return
- * to the partner. Reassign, cancel and note writing arrive in a later checkpoint.
+ * to the partner. C4 adds cancellation for any open Request, with its reason. Reassign
+ * and note writing arrive in a later checkpoint.
  *
  * Partner-facing and internal-only content are visibly separate zones; the internal
  * zone comes from records no partner projection reads.
@@ -32,6 +33,7 @@ import {
 } from '../../modules/requests/types';
 import { resourceHost } from '../../modules/resources/types';
 import { LifecycleActions } from './LifecycleActions';
+import { CancelRequest } from './CancelRequest';
 import { ResponseHistory } from './ResponseHistory';
 
 export function InternalRequestDetail({
@@ -109,6 +111,24 @@ export function InternalRequestDetail({
         </p>
       </div>
 
+      {request.status === 'cancelled' ? (
+        <div className="banner banner--muted" role="status">
+          <Icon name="alert" size={20} />
+          <div>
+            <span className="banner__title">
+              Cancelado{request.cancelledAt ? ` a ${formatDateTime(request.cancelledAt)}` : ''}
+            </span>
+            <p>
+              <strong>Motivo:</strong> {request.cancellationReason}
+            </p>
+            <p className="sub">
+              {request.publishedAt ? 'A parceira vê este motivo no pedido.' : 'Era um rascunho: a parceira nunca o viu.'}{' '}
+              Um pedido cancelado não pode ser reaberto nem editado.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="split">
         <div className="zone">
           <span className="zone__tag zone__tag--partner">
@@ -159,6 +179,13 @@ export function InternalRequestDetail({
           {request.status === 'needs_sollelio' ? (
             <LifecycleActions request={request} assigneeName={nameOf(request.assigneeProfileId)} onDone={afterAction} />
           ) : null}
+          <CancelRequest
+            requestId={request.id}
+            status={request.status}
+            revision={request.revision}
+            assigneeName={nameOf(request.assigneeProfileId)}
+            onDone={afterAction}
+          />
 
           <span className="zone__tag zone__tag--internal">
             <Icon name="lock" size={16} />

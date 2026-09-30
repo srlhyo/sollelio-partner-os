@@ -116,13 +116,20 @@ insert into public.requests (
    null, 'task', 'completed', 'none', 'Concluída', null,
    'Já está feita.', 2,
    'aaaaaaaa-0000-0000-0000-000000000001', null,
-   'aaaaaaaa-0000-0000-0000-000000000003', now() - interval '9 days', now() - interval '8 days', null),
+   'aaaaaaaa-0000-0000-0000-000000000003', now() - interval '9 days', now() - interval '8 days', null);
 
+-- A cancelled Request carries its reason from C4 on (05 §4, Cancellation).
+insert into public.requests (
+  id, organization_id, product_id, type, status, next_actor, title, context,
+  requested_action, estimated_effort_minutes, assignee_profile_id, due_at,
+  created_by, published_at, completed_at, cancelled_at, cancellation_reason
+) values
   ('eeeeeeee-0000-0000-0000-000000000007', 'bbbbbbbb-0000-0000-0000-000000000001',
    null, 'task', 'cancelled', 'none', 'Cancelada', null,
    'Deixou de fazer sentido.', 2,
    'aaaaaaaa-0000-0000-0000-000000000001', null,
-   'aaaaaaaa-0000-0000-0000-000000000003', now() - interval '9 days', null, now() - interval '7 days');
+   'aaaaaaaa-0000-0000-0000-000000000003', now() - interval '9 days', null, now() - interval '7 days',
+   'O evento foi adiado.');
 
 insert into public.request_internal_details (request_id, completion_criteria, internal_owner_profile_id, priority) values
   ('eeeeeeee-0000-0000-0000-000000000001',
