@@ -309,3 +309,52 @@ test('boundary whitespace of every kind is trimmed; whitespace-only is empty; re
   expect(approved.status, JSON.stringify(approved.body)).toBe(200);
   expect(sql(`select response_decision || '/' || coalesce(response_notes, 'NULL') from public.request_submissions where id = '${approve}'`)).toBe('approve/NULL');
 });
+
+// Initial-round whitespace canonicalization (20261003120000): long_text and single_choice
+// answers trim every whitespace character at either end; the replay identity is the
+// unchanged btrim()-based payload hash, so only ASCII-space padding replays.
+test('initial round: whitespace-only is unanswered, padded answers are canonical, replay identity is unchanged', async () => {
+  const WS = '\u00a0\u2003\u3000\ufeff';
+  const id = newId();
+  const payload = {
+    organization_id: org.O1, assignee_profile_id: A.profileId, type: 'question', title: `Espaços iniciais ${tag}`,
+    requested_action: 'Faça isto.', estimated_effort_minutes: 3, internal: { completion_criteria: 'Respondido.' },
+    fields: [
+      { label: 'O que correu mal?', type: 'long_text', required: true },
+      { label: 'Algo mais?', type: 'long_text', required: false },
+      { label: 'Está confirmado?', type: 'single_choice', required: true, options: ['Confirmado', 'Não confirmado'] },
+    ],
+  };
+  expect((await command(S.token, 'create', { request_id: id, payload })).status).toBe(200);
+  const preview = await command(S.token, 'preview', { request_id: id });
+  expect((await command(S.token, 'publish', { request_id: id, expected_revision: preview.body.data?.revision, idempotency_key: newId() })).status).toBe(200);
+  const f = Object.fromEntries(sql(`select string_agg(key || '=' || id, ',') from public.request_fields where request_id = '${id}'`)
+    .split(',').map((kv) => kv.split('=') as [string, string]));
+  const body = (q1: unknown, q2: unknown, q3: unknown) =>
+    ({ answers: [{ field_id: f.q1, value: q1 }, { field_id: f.q2, value: q2 }, { field_id: f.q3, value: q3 }] });
+  const errorsOf = (r: Awaited<ReturnType<typeof submit>>) =>
+    [r.status, ...(r.body.error?.details?.errors ?? []).map((e) => `${e.field}:${e.code}`)];
+
+  expect(errorsOf(await submit(A.token, id, newId(), null, body(`\n\t${WS}\r\n`, null, 'Confirmado')))).toEqual([422, `answers.${f.q1}:required`]);
+  expect(errorsOf(await submit(A.token, id, newId(), null, body('Texto.', null, 'Talvez')))).toEqual([422, `answers.${f.q3}:invalid_option`]);
+  expect(errorsOf(await submit(A.token, id, newId(), null, body('Texto.', null, `${WS}`)))).toEqual([422, `answers.${f.q3}:invalid_option`]);
+  expect(count(`select count(*) from public.request_submissions where request_id = '${id}'`)).toBe(0);
+
+  const k = newId();
+  const answersBody = body(`\u00a0\n Texto real \t\u3000`, `\n\t\u00a0`, `\u00a0Confirmado\u3000`);
+  const first = await submit(A.token, id, k, null, answersBody);
+  expect(first.status, JSON.stringify(first.body)).toBe(200);
+  const stored = (key: string) => sql(`select coalesce((select value #>> '{}' from public.request_answers where submission_id = '${k}' and request_field_id = '${f[key]}'), 'NONE')`);
+  expect([stored('q1'), stored('q2'), stored('q3')]).toEqual(['Texto real', 'NONE', 'Confirmado']);
+
+  // Replay identity: the exact attempt and ASCII-space padding replay; a changed answer,
+  // or the same canonical answers padded otherwise, is a conflict under the same id.
+  const again = await submit(A.token, id, k, null, answersBody);
+  expect([again.status, again.body.data?.replayed, again.body.data?.revision]).toEqual([200, true, first.body.data?.revision]);
+  expect((await submit(A.token, id, k, null, body(`  \u00a0\n Texto real \t\u3000  `, `\n\t\u00a0`, ` \u00a0Confirmado\u3000 `))).body.data?.replayed).toBe(true);
+  expect((await submit(A.token, id, k, null, body('Outro texto', null, 'Confirmado'))).body.error?.code).toBe('idempotency_conflict');
+  expect((await submit(A.token, id, k, null, body('Texto real', null, 'Confirmado'))).body.error?.code).toBe('idempotency_conflict');
+  expect(count(`select count(*) from public.request_submissions where request_id = '${id}'`)).toBe(1);
+  expect(count(`select count(*) from public.request_answers where submission_id = '${k}'`)).toBe(2);
+  expect(count(`select count(*) from public.activity_events where object_id = '${id}' and event_type = 'request.submitted'`)).toBe(1);
+});
