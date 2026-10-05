@@ -183,9 +183,12 @@ begin
      or src like '%btrim(resp%' then
     raise exception 'cmd_submit_request does not trim the returned-round text and notes through app.request_trim.';
   end if;
-  -- Deliberately unchanged: initial-round normalization (three btrim) and the replay hash.
-  if (length(src) - length(replace(src, 'btrim(val #>> ''{}'')', ''))) / length('btrim(val #>> ''{}'')') <> 3 then
-    raise exception 'Initial-round normalization changed in cmd_submit_request.';
+  -- The initial round left btrim() here (three uses); 20261003120000 moved it to
+  -- app.request_trim, keeping one btrim() for the exact (C3) single_choice match —
+  -- see 99b. The replay hash below stays on btrim().
+  if src not like '%s := app.request_trim(val #>> ''{}'');%'
+     or (length(src) - length(replace(src, 'btrim(val #>> ''{}'')', ''))) / length('btrim(val #>> ''{}'')') <> 1 then
+    raise exception 'Initial-round normalization in cmd_submit_request is not the 20261003120000 one.';
   end if;
   src := (select prosrc from pg_proc where oid = 'app.request_submission_hash(uuid, jsonb)'::regprocedure);
   if src not like '%to_jsonb(btrim(e ->> ''value''))%' or src not like '%to_jsonb(btrim(kv.value #>> ''{}''))%' or src like '%request_trim%' then
